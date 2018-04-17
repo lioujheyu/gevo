@@ -173,9 +173,7 @@ def readLLVMsrc(str_encode):
     I.cmd = []
     return I
 
-def evole(llvm_src_filename: str, entry_kernel: str):
-    stats = {'valid':0, 'invalid':0, 'infinite':0}
-
+def evole(llvm_src_filename: str, entry_kernel: str, stats):
     try:
         f = open(llvm_src_filename, 'r')
         init_src_enc = f.read().encode()
@@ -259,9 +257,10 @@ def evole(llvm_src_filename: str, entry_kernel: str):
 
         for mutant in offspring:
             if random.random() < MUPB:
+                count = count + 1
                 print(count, end='', flush=True)
-                toolbox.mutate(mutant)
                 del mutant.fitness.values
+                toolbox.mutate(mutant)
 
         # Evaluate the individuals with an invalid fitness
         invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
@@ -299,4 +298,10 @@ def evole(llvm_src_filename: str, entry_kernel: str):
     # plt.savefig('genealogy.png')
 
 if __name__ == '__main__':
-    evole('matrixMul-cuda-nvptx64-nvidia-cuda-sm_35.ll', 'matrixMul_naive')
+    stats = {'valid':0, 'invalid':0, 'infinite':0}
+    try:
+        evole('matrixMul-cuda-nvptx64-nvidia-cuda-sm_35.ll', 'matrixMul_naive', stats)
+    except KeyboardInterrupt:
+        print("valid variant:   {}".format(stats['valid']))
+        print("invalid variant: {}".format(stats['invalid']))
+        print("infinite variant:{}".format(stats['infinite']))
