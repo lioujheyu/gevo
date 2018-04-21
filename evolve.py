@@ -16,8 +16,6 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import re
 
-cuda_flags = shlex.split('-L/usr/local/cuda/lib64 --cuda-gpu-arch=sm_35 -ldl -lrt -pthread -lcudart_static -lcuda')
-
 # Run shorter is better
 creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
 # We need something mutable in python so that the mutation and crossover are able to modify the individual in-place
@@ -72,7 +70,7 @@ def mutLLVM(individual, kernel, stats):
 
         # read the uniqueID of the processed instructions
         for line in proc.stderr.decode().split('\n'):
-            result = re.search('\w+ (U[0-9.irs]+)(,(U[0-9.irw]))?', line)
+            result = re.search('\w+ (U[0-9.irs]+)(,(U[0-9.irs]+))?', line)
             if result != None:
                 break
 
@@ -83,7 +81,7 @@ def mutLLVM(individual, kernel, stats):
         if op == 'c':
             inst_UID = ['-' + op, result.group(1)]
         else:
-            inst_UID = ['-' + op, result.group(1), result.group(3)]
+            inst_UID = ['-' + op, result.group(1) + ',' + result.group(3)]
 
         individual[:] = bytearray(proc.stdout)
         individual.line_size = lineSize(individual)
@@ -94,35 +92,56 @@ def mutLLVM(individual, kernel, stats):
     print("Cannot get mutant to be compiled in {} trials".format(individual.line_size))
     return individual,
 
-def cxOnePointLLVM(ind1, ind2, init_src):
-    src_length = min(len(ind1.cmd), len(ind2.cmd))
-    point = random.randint(1, src_length-1)
-    cmd1 = ind1.cmd[:point] + ind2.cmd[point:]
-    cmd2 = ind2.cmd[:point] + ind1.cmd[point:]
-    # ind1.cmd = cmd1
-    # ind2.cmd = cmd2
-    # cmd1 = ['llvm-mutate']
-    # cmd1.extend(ind1.cmd)
-    # cmd2 = ['llvm-mutate']
-    # cmd2.extend(ind2.cmd)
+def cxOnePointLLVM(ind1, ind2, init_src, kernel, stats):
+    # check whether they have the same starting edits(accessor)
+    start_point = 0
+    for edit1, edit2 in zip(ind1.cmd, ind2.cmd):
+        if edit1 == edit2:
+            start_point = start_point + 1
+        else:
+            break
+    if (len(ind1.cmd)-1) <= start_point and (len(ind2.cmd)-1) <= start_point:
+        # Exist no meaningful crossover
+        return ind1, ind2
+
+    point1 = start_point
+    point2 = start_point
+    while ( (point1 == start_point and point2 == start_point) or
+            (point1 == len(ind1.cmd)-1 and point2 == len(ind2.cmd)-1) ):
+        point1 = random.randint(start_point, len(ind1.cmd)-1)
+        point2 = random.randint(start_point, len(ind2.cmd)-1)
+
+    cmd1 = ind1.cmd[:point1] + ind2.cmd[point2:]
+    cmd2 = ind2.cmd[:point2] + ind1.cmd[point1:]
+
     proc1 = subprocess.run( ['llvm-mutate'] + [i for j in cmd1 for i in j],
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
                             input=init_src )
-    if proc1.returncode is 0:
-        # if proc1.stderr.decode().find('mismatch') > 0:
-        #     continue
+    child1 = creator.Individual(proc1.stdout)
+    fit1 = link_and_run(child1, kernel, stats)
+    if fit1 != 0:
+        print(cmd1, file=sys.stderr, flush=True)
+        print(proc1.stderr.decode(), file=sys.stderr, flush=True)
+
         ind1[:] = bytearray(proc1.stdout)
+        ind1.cmd[:] = cmd1
+        ind1.fitness.values = fit1
         ind1.line_size = lineSize(ind1)
 
     proc2 = subprocess.run( ['llvm-mutate'] + [i for j in cmd2 for i in j],
                             stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE,
                             input=init_src )
-    if proc2.returncode is 0:
-        # if proc2.stderr.decode().find('mismatch') > 0:
-        #     continue
+    child2 = creator.Individual(proc2.stdout)
+    fit2 = link_and_run(child2, kernel, stats)
+    if fit2 != 0:
+        print(cmd2, file=sys.stderr, flush=True)
+        print(proc2.stderr.decode(), file=sys.stderr, flush=True)
+
         ind2[:] = bytearray(proc2.stdout)
+        ind2.cmd[:] = cmd2
+        ind2.fitness.values = fit2
         ind2.line_size = lineSize(ind2)
 
     print('c', end='', flush=True)
@@ -205,7 +224,7 @@ def evole(llvm_src_filename: str, entry_kernel: str, stats):
 
     toolbox.register('evaluate', link_and_run, kernel=entry_kernel, stats=stats)
     toolbox.register('mutate', mutLLVM, kernel=entry_kernel, stats=stats)
-    toolbox.register('mate', cxOnePointLLVM, init_src=init_src_enc)
+    toolbox.register('mate', cxOnePointLLVM, init_src=init_src_enc, kernel=entry_kernel, stats=stats)
 
     toolbox.register('select', tools.selTournament, tournsize=2)
 
@@ -222,9 +241,15 @@ def evole(llvm_src_filename: str, entry_kernel: str, stats):
     # compile the initial llvm-IR into ptx and store it for later comparision
     translate_llvmIR_ptx(pop[0], "origin.ptx")
 
-    pop[0].fitness.values = toolbox.evaluate(pop[0])
+    # Initial mutate to get diversed population
     for ind in pop:
-        ind.fitness.values = pop[0].fitness.values
+        toolbox.mutate(ind)
+        toolbox.mutate(ind)
+        toolbox.mutate(ind)
+
+    # pop[0].fitness.values = toolbox.evaluate(pop[0])
+    # for ind in pop:
+    #     ind.fitness.values = pop[0].fitness.values
 
     fitnesses = [ ind.fitness.values for ind in pop ]
     fits = [ind.fitness.values[0] for ind in pop]
@@ -244,17 +269,13 @@ def evole(llvm_src_filename: str, entry_kernel: str, stats):
     print("  Avg %s" % avgFit[-1])
     print("  Min %s" % minFit[-1])
 
-    CXPB = 1.0
-    MUPB = 0.9
+    CXPB = 0.8
+    MUPB = 0.1
 
     # while generations < 100:
     while True:
         generations = generations + 1
         count = 0
-        # if generations < 4:
-        #     MUPB = 1.0
-        # else:
-        #     MUPB = 0.2
         print("-- Generation %i --" % generations)
 
         offspring = toolbox.select(pop, popSize)
@@ -263,16 +284,16 @@ def evole(llvm_src_filename: str, entry_kernel: str, stats):
         # Clone the selected individuals
         offspring = list(map(toolbox.clone, offspring))
         elite = list(map(toolbox.clone, elite))
-        with open("best-{}.ll".format(generations), 'w') as f:
+        with open("best-{}.ll".format(generations-1), 'w') as f:
             f.write(elite[0].decode())
 
-        # for child1, child2 in zip(offspring[::2], offspring[1::2]):
-        #     if min(len(child1.cmd), len(child2.cmd)) < 2:
-        #         continue
-        #     if random.random() < CXPB and generations > 3:
-        #         toolbox.mate(child1, child2)
-        #         del child1.fitness.values
-        #         del child2.fitness.values
+        for child1, child2 in zip(offspring[::2], offspring[1::2]):
+            if len(child1.cmd) < 2 and len(child2.cmd) < 2:
+                continue
+            if random.random() < CXPB:
+                toolbox.mate(child1, child2)
+                del child1.fitness.values
+                del child2.fitness.values
 
         for mutant in offspring:
             if random.random() < MUPB:
