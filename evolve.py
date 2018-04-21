@@ -14,6 +14,7 @@ import csv
 import json
 import matplotlib.pyplot as plt
 import networkx as nx
+import re
 
 cuda_flags = shlex.split('-L/usr/local/cuda/lib64 --cuda-gpu-arch=sm_35 -ldl -lrt -pthread -lcudart_static -lcuda')
 
@@ -49,10 +50,10 @@ def mutLLVM(individual, kernel, stats):
         op = random.choice(operations)
         mut_command = ['llvm-mutate']
         if op == 'c':
-            inst = ['-' + op, str(line1)]
+            mut_command.extend( ['-' + op, str(line1)] )
         else:
-            inst = ['-' + op, str(line1) + ',' + str(line2)]
-        mut_command.extend(inst)
+            mut_command.extend( ['-' + op, str(line1) + ',' + str(line2)] )
+        inst_UID = ['-' + op]
 
         proc = subprocess.run( mut_command,
                                stdout=subprocess.PIPE,
@@ -62,14 +63,31 @@ def mutLLVM(individual, kernel, stats):
             continue
         if proc.stderr.decode().find('mismatch') != -1:
             continue
+        if proc.stderr.decode().find('no use') != -1:
+            continue
         test_ind = creator.Individual(proc.stdout)
         fit = link_and_run(test_ind, kernel, stats)
-        if fit[0] > 1000000000:
+        if fit[0] == 0:
             continue
+
+        # read the uniqueID of the processed instructions
+        for line in proc.stderr.decode().split('\n'):
+            result = re.search('\w+ (U[0-9.irs]+)(,(U[0-9.irw]))?', line)
+            if result != None:
+                break
+
+        if result == None:
+            print(proc.stderr.decode())
+            raise Exception("Could not understand the result from llvm-mutate")
+
+        if op == 'c':
+            inst_UID = ['-' + op, result.group(1)]
+        else:
+            inst_UID = ['-' + op, result.group(1), result.group(3)]
 
         individual[:] = bytearray(proc.stdout)
         individual.line_size = lineSize(individual)
-        individual.cmd.append(inst)
+        individual.cmd.append(inst_UID)
         individual.fitness.values = fit
         return individual,
 
@@ -128,8 +146,9 @@ def link_and_run(individual, kernel, stats):
         f.write(individual.decode())
 
     proc = subprocess.Popen(['nvprof', '--csv', '-u', 'us',
+    # proc = subprocess.Popen(['/usr/local/cuda/bin/nvprof', '--unified-memory-profiling', 'off', '--csv', '-u', 'us',
                              './'+cudaAppName],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
         stdout, stderr = proc.communicate(timeout=30) # second
         retcode = proc.poll()
@@ -144,13 +163,13 @@ def link_and_run(individual, kernel, stats):
         proc.kill()
         proc.wait()
         stats['infinite'] = stats['infinite'] + 1
-        return sys.float_info.max,
+        return 0,
 
     program_output = stdout.decode()
     if program_output.find("Total Errors = 0") == -1:
         print('x', end='', flush=True)
         stats['invalid'] = stats['invalid'] + 1
-        return sys.float_info.max,
+        return 0,
     else:
         print('.', end='', flush=True)
         stats['valid'] = stats['valid'] + 1
@@ -300,7 +319,7 @@ def evole(llvm_src_filename: str, entry_kernel: str, stats):
 if __name__ == '__main__':
     stats = {'valid':0, 'invalid':0, 'infinite':0}
     try:
-        evole('matrixMul-cuda-nvptx64-nvidia-cuda-sm_35.ll', 'matrixMul_naive', stats)
+        evole('cuda-device-only-kernel.ll', 'matrixMul_naive', stats)
     except KeyboardInterrupt:
         print("valid variant:   {}".format(stats['valid']))
         print("invalid variant: {}".format(stats['invalid']))
