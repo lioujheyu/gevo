@@ -15,6 +15,7 @@ import json
 import matplotlib.pyplot as plt
 import networkx as nx
 import re
+import json
 
 # Run shorter is better
 creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
@@ -101,15 +102,18 @@ def cxOnePointLLVM(ind1, ind2, init_src, kernel, stats):
         else:
             break
     if (len(ind1.cmd)-1) <= start_point and (len(ind2.cmd)-1) <= start_point:
+        print("s:{}, i:{}, i:{}. no meaningful crossover".format(start_point, len(ind1.cmd)-1, len(ind2.cmd)-1),
+              file=sys.stderr)
         # Exist no meaningful crossover
         return ind1, ind2
 
     point1 = start_point
     point2 = start_point
-    while ( (point1 == start_point and point2 == start_point) or
-            (point1 == len(ind1.cmd)-1 and point2 == len(ind2.cmd)-1) ):
-        point1 = random.randint(start_point, len(ind1.cmd)-1)
-        point2 = random.randint(start_point, len(ind2.cmd)-1)
+    while (point1 == start_point and point2 == start_point):
+        if len(ind1.cmd) > start_point:
+            point1 = random.randint(start_point, len(ind1.cmd)-1)
+        if len(ind2.cmd) > start_point:
+            point2 = random.randint(start_point, len(ind2.cmd)-1)
 
     cmd1 = ind1.cmd[:point1] + ind2.cmd[point2:]
     cmd2 = ind2.cmd[:point2] + ind1.cmd[point1:]
@@ -119,11 +123,12 @@ def cxOnePointLLVM(ind1, ind2, init_src, kernel, stats):
                             stderr=subprocess.PIPE,
                             input=init_src )
     child1 = creator.Individual(proc1.stdout)
-    fit1 = link_and_run(child1, kernel, stats)
-    if fit1 != 0:
-        print(cmd1, file=sys.stderr, flush=True)
-        print(proc1.stderr.decode(), file=sys.stderr, flush=True)
-
+    print(cmd1, file=sys.stderr, flush=True)
+    print(proc1.stderr.decode(), file=sys.stderr, flush=True)
+    fit1 = [0]
+    if proc1.returncode == 0:
+        fit1 = link_and_run(child1, kernel, stats)
+    if fit1[0] != 0:
         ind1[:] = bytearray(proc1.stdout)
         ind1.cmd[:] = cmd1
         ind1.fitness.values = fit1
@@ -134,11 +139,12 @@ def cxOnePointLLVM(ind1, ind2, init_src, kernel, stats):
                             stderr=subprocess.PIPE,
                             input=init_src )
     child2 = creator.Individual(proc2.stdout)
-    fit2 = link_and_run(child2, kernel, stats)
-    if fit2 != 0:
-        print(cmd2, file=sys.stderr, flush=True)
-        print(proc2.stderr.decode(), file=sys.stderr, flush=True)
-
+    print(cmd2, file=sys.stderr, flush=True)
+    print(proc2.stderr.decode(), file=sys.stderr, flush=True)
+    fit2 = [0]
+    if proc2.returncode == 0:
+        fit2 = link_and_run(child2, kernel, stats)
+    if fit2[0] != 0:
         ind2[:] = bytearray(proc2.stdout)
         ind2.cmd[:] = cmd2
         ind2.fitness.values = fit2
@@ -172,7 +178,7 @@ def link_and_run(individual, kernel, stats):
         stdout, stderr = proc.communicate(timeout=30) # second
         retcode = proc.poll()
         if retcode:
-            print(stderr.decode())
+            print(stderr.decode(), file=sys.stderr)
             raise Exception('nvprof error')
     except subprocess.TimeoutExpired:
         # Offentime teminating nvprof will not teminate the underlying cuda program
@@ -247,6 +253,17 @@ def evole(llvm_src_filename: str, entry_kernel: str, stats):
         toolbox.mutate(ind)
         toolbox.mutate(ind)
 
+    fp = open("stage/initcmd.json", 'w')
+    count = 0
+    all_cmd = [ind.cmd for ind in pop]
+    json.dump(all_cmd, fp, indent=2)
+    for ind in pop:
+        filename = "stage/" + str(count) + ".ll"
+        with open(filename, 'w') as f:
+            f.write(ind.decode())
+        count = count + 1
+    fp.close()
+
     # pop[0].fitness.values = toolbox.evaluate(pop[0])
     # for ind in pop:
     #     ind.fitness.values = pop[0].fitness.values
@@ -292,8 +309,6 @@ def evole(llvm_src_filename: str, entry_kernel: str, stats):
                 continue
             if random.random() < CXPB:
                 toolbox.mate(child1, child2)
-                del child1.fitness.values
-                del child2.fitness.values
 
         for mutant in offspring:
             if random.random() < MUPB:
@@ -340,7 +355,7 @@ def evole(llvm_src_filename: str, entry_kernel: str, stats):
 if __name__ == '__main__':
     stats = {'valid':0, 'invalid':0, 'infinite':0}
     try:
-        evole('cuda-device-only-kernel.ll', 'matrixMul_naive', stats)
+        evole('cuda-device-only-kernel.ll', 'matrixMul_tiling', stats)
     except KeyboardInterrupt:
         print("valid variant:   {}".format(stats['valid']))
         print("invalid variant: {}".format(stats['invalid']))
