@@ -130,7 +130,8 @@ def cxOnePointLLVM(ind1, ind2, init_src, kernel, stats):
         fit1 = link_and_run(child1, kernel, stats)
     if fit1[0] != 0:
         ind1[:] = bytearray(proc1.stdout)
-        ind1.cmd[:] = cmd1
+        # this set approach reduces the duplicate edits in the list
+        ind1.cmd[:] = list(set(cmd1))
         ind1.fitness.values = fit1
         ind1.line_size = lineSize(ind1)
 
@@ -146,7 +147,7 @@ def cxOnePointLLVM(ind1, ind2, init_src, kernel, stats):
         fit2 = link_and_run(child2, kernel, stats)
     if fit2[0] != 0:
         ind2[:] = bytearray(proc2.stdout)
-        ind2.cmd[:] = cmd2
+        ind2.cmd[:] = list(set(cmd2))
         ind2.fitness.values = fit2
         ind2.line_size = lineSize(ind2)
 
@@ -355,7 +356,7 @@ def evole(llvm_src_filename: str, entry_kernel: str, stats):
 if __name__ == '__main__':
     stats = {'valid':0, 'invalid':0, 'infinite':0}
     try:
-        evole('cuda-device-only-kernel.ll', 'matrixMul_tiling', stats)
+        evole('cuda-device-only-kernel.ll', 'matrixMul_naive', stats)
     except KeyboardInterrupt:
         print("valid variant:   {}".format(stats['valid']))
         print("invalid variant: {}".format(stats['invalid']))
