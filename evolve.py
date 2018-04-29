@@ -178,12 +178,13 @@ def link_and_run(individual, kernel, stats):
     try:
         stdout, stderr = proc.communicate(timeout=30) # second
         retcode = proc.poll()
-        if retcode:
+        # retcode == 9: error is from testing program, not nvprof
+        if retcode != 9 and retcode != 0:
             print(stderr.decode(), file=sys.stderr)
             raise Exception('nvprof error')
     except subprocess.TimeoutExpired:
-        # Offentime teminating nvprof will not teminate the underlying cuda program
-        # So issue the kill command to those cuda app first
+        # Offentimes terminating nvprof will not terminate the underlying cuda program
+        # if that program is corrupted. So issue the kill command to those cuda app first
         print('8', end='', flush=True)
         subprocess.run(['killall', cudaAppName])
         proc.kill()
