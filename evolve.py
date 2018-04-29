@@ -171,8 +171,8 @@ def link_and_run(individual, kernel, stats):
     with open('a.ll', 'w') as f:
         f.write(individual.decode())
 
-    proc = subprocess.Popen(['nvprof', '--csv', '-u', 'us',
-    # proc = subprocess.Popen(['/usr/local/cuda/bin/nvprof', '--unified-memory-profiling', 'off', '--csv', '-u', 'us',
+    # proc = subprocess.Popen(['nvprof', '--csv', '-u', 'us',
+    proc = subprocess.Popen(['/usr/local/cuda/bin/nvprof', '--unified-memory-profiling', 'off', '--csv', '-u', 'us',
                              './'+cudaAppName],
                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
@@ -203,12 +203,18 @@ def link_and_run(individual, kernel, stats):
         profile_output = stderr.decode()
         f = StringIO(profile_output)
         csv_list = list(csv.reader(f, delimiter=','))
-        # search for kernel function
+
+        # search for kernel function(s)
+        kernel_time = []
         for line in csv_list[5:]:
-            # 7th column for name of CUDA function call
-            if line[7].find(kernel) == 0:
-                # third column for avg execution time
-                return float(line[2]),
+            # 8th column for name of CUDA function call
+            for name in kernel:
+                if line[7].find(name) == 0:
+                    # 3rd column for avg execution time
+                    kernel_time.append(float(line[2]))
+
+            if len(kernel) == len(kernel_time):
+                return sum(kernel_time),
 
         raise Exception("{} is not a valid kernel function from nvprof".format(kernel))
 
@@ -219,7 +225,7 @@ def readLLVMsrc(str_encode):
     I.cmd = []
     return I
 
-def evole(llvm_src_filename: str, entry_kernel: str, stats):
+def evole(llvm_src_filename: str, entry_kernel, stats):
     try:
         f = open(llvm_src_filename, 'r')
         init_src_enc = f.read().encode()
@@ -357,7 +363,7 @@ def evole(llvm_src_filename: str, entry_kernel: str, stats):
 if __name__ == '__main__':
     stats = {'valid':0, 'invalid':0, 'infinite':0}
     try:
-        evole('cuda-device-only-kernel.ll', 'matrixMul_naive', stats)
+        evole('cuda-device-only-kernel.ll', ['matrixMul_naive'], stats)
     except KeyboardInterrupt:
         print("valid variant:   {}".format(stats['valid']))
         print("invalid variant: {}".format(stats['invalid']))
