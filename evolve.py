@@ -16,11 +16,21 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import re
 import json
+import pathlib
 
 # Run shorter is better
 creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
 # We need something mutable in python so that the mutation and crossover are able to modify the individual in-place
 creator.create("Individual", bytearray, fitness=creator.FitnessMin, line_size=0, cmd=[])
+
+def rearrage(cmd):
+    c_cmd = [c for c in cmd if c[0] == '-c']
+    r_cmd = [c for c in cmd if c[0] == '-r']
+    i_cmd = [c for c in cmd if c[0] == '-i']
+    s_cmd = [c for c in cmd if c[0] == '-s']
+
+    cmd[:] = i_cmd + s_cmd + r_cmd + c_cmd
+    return cmd
 
 def lineSize(individual):
     try:
@@ -52,7 +62,6 @@ def mutLLVM(individual, kernel, stats):
             mut_command.extend( ['-' + op, str(line1)] )
         else:
             mut_command.extend( ['-' + op, str(line1) + ',' + str(line2)] )
-        inst_UID = ['-' + op]
 
         proc = subprocess.run( mut_command,
                                stdout=subprocess.PIPE,
@@ -80,9 +89,9 @@ def mutLLVM(individual, kernel, stats):
             raise Exception("Could not understand the result from llvm-mutate")
 
         if op == 'c':
-            inst_UID = ['-' + op, result.group(1)]
+            inst_UID = ('-'+op, result.group(1))
         else:
-            inst_UID = ['-' + op, result.group(1) + ',' + result.group(3)]
+            inst_UID = ('-'+op, result.group(1) + ',' + result.group(3))
 
         individual[:] = bytearray(proc.stdout)
         individual.line_size = lineSize(individual)
@@ -117,6 +126,12 @@ def cxOnePointLLVM(ind1, ind2, init_src, kernel, stats):
 
     cmd1 = ind1.cmd[:point1] + ind2.cmd[point2:]
     cmd2 = ind2.cmd[:point2] + ind1.cmd[point1:]
+    # this set approach reduces the duplicate edits in the list
+    cmd1[:] = list(set(cmd1))
+    cmd2[:] = list(set(cmd2))
+    # rearrage cmd to reduce the fail chance of edit
+    rearrage(cmd1)
+    rearrage(cmd2)
 
     proc1 = subprocess.run( ['llvm-mutate'] + [i for j in cmd1 for i in j],
                             stdout=subprocess.PIPE,
@@ -130,8 +145,6 @@ def cxOnePointLLVM(ind1, ind2, init_src, kernel, stats):
         fit1 = link_and_run(child1, kernel, stats)
     if fit1[0] != 0:
         ind1[:] = bytearray(proc1.stdout)
-        # this set approach reduces the duplicate edits in the list
-        ind1.cmd[:] = list(set(cmd1))
         ind1.fitness.values = fit1
         ind1.line_size = lineSize(ind1)
 
@@ -147,7 +160,6 @@ def cxOnePointLLVM(ind1, ind2, init_src, kernel, stats):
         fit2 = link_and_run(child2, kernel, stats)
     if fit2[0] != 0:
         ind2[:] = bytearray(proc2.stdout)
-        ind2.cmd[:] = list(set(cmd2))
         ind2.fitness.values = fit2
         ind2.line_size = lineSize(ind2)
 
@@ -261,6 +273,7 @@ def evole(llvm_src_filename: str, entry_kernel, stats):
         toolbox.mutate(ind)
         toolbox.mutate(ind)
 
+    pathlib.Path('stage').mkdir(exist_ok=True)
     fp = open("stage/initcmd.json", 'w')
     count = 0
     all_cmd = [ind.cmd for ind in pop]
