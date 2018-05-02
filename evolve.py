@@ -2,21 +2,18 @@
 
 import argparse
 import subprocess
-import shlex
-import pipes
 import random
-import sys
+import csv
+import json
+import re
+import pathlib
 from io import StringIO
+
+# import matplotlib.pyplot as plt
+# import networkx as nx
 from deap import base
 from deap import creator
 from deap import tools
-import csv
-import json
-import matplotlib.pyplot as plt
-import networkx as nx
-import re
-import json
-import pathlib
 
 # Run shorter is better
 creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
@@ -31,7 +28,7 @@ def rearrage(cmd):
     i_cmd = [c for c in cmd if c[0] == '-i']
     s_cmd = [c for c in cmd if c[0] == '-s']
 
-    cmd[:] = i_cmd + s_cmd + r_cmd + c_cmd
+    cmd[:] = s_cmd + i_cmd + r_cmd + c_cmd
     return cmd
 
 def lineSize(individual):
@@ -61,20 +58,19 @@ def mutLLVM(individual, kernel, stats):
         op = random.choice(operations)
         mut_command = ['llvm-mutate']
         if op == 'c':
-            mut_command.extend( ['-' + op, str(line1)] )
+            mut_command.extend(['-' + op, str(line1)])
         else:
-            mut_command.extend( ['-' + op, str(line1) + ',' + str(line2)] )
+            mut_command.extend(['-' + op, str(line1) + ',' + str(line2)])
 
-        proc = subprocess.run( mut_command,
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE,
-                               input=individual )
-        if proc.returncode != 0:
+        proc = subprocess.run(mut_command,
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE,
+                              input=individual)
+        if(proc.returncode != 0 or
+           proc.stderr.decode().find('mismatch') != -1 or
+           proc.stderr.decode().find('no use') != -1):
             continue
-        if proc.stderr.decode().find('mismatch') != -1:
-            continue
-        if proc.stderr.decode().find('no use') != -1:
-            continue
+
         test_ind = creator.Individual(proc.stdout)
         fit = link_and_run(test_ind, kernel, stats)
         if fit[0] == 0:
@@ -113,14 +109,14 @@ def cxOnePointLLVM(ind1, ind2, init_src, kernel, stats):
         else:
             break
     if (len(ind1.cmd)-1) <= start_point and (len(ind2.cmd)-1) <= start_point:
-        print("s:{}, i:{}, i:{}. no meaningful crossover".format(start_point, len(ind1.cmd)-1, len(ind2.cmd)-1),
+        print("s:{}, i:{}, i:{}. meaningless crossover".format(start_point, len(ind1.cmd)-1, len(ind2.cmd)-1),
               file=errlog)
         # Exist no meaningful crossover
         return ind1, ind2
 
     point1 = start_point
     point2 = start_point
-    while (point1 == start_point and point2 == start_point):
+    while point1 == start_point and point2 == start_point:
         if len(ind1.cmd) > start_point:
             point1 = random.randint(start_point, len(ind1.cmd)-1)
         if len(ind2.cmd) > start_point:
@@ -135,10 +131,10 @@ def cxOnePointLLVM(ind1, ind2, init_src, kernel, stats):
     rearrage(cmd1)
     rearrage(cmd2)
 
-    proc1 = subprocess.run( ['llvm-mutate'] + [i for j in cmd1 for i in j],
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            input=init_src )
+    proc1 = subprocess.run(['llvm-mutate'] + [i for j in cmd1 for i in j],
+                           stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE,
+                           input=init_src)
     child1 = creator.Individual(proc1.stdout)
     print(cmd1, file=errlog, flush=True)
     print(proc1.stderr.decode(), file=errlog, flush=True)
@@ -150,10 +146,10 @@ def cxOnePointLLVM(ind1, ind2, init_src, kernel, stats):
         ind1.fitness.values = fit1
         ind1.line_size = lineSize(ind1)
 
-    proc2 = subprocess.run( ['llvm-mutate'] + [i for j in cmd2 for i in j],
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE,
-                            input=init_src )
+    proc2 = subprocess.run(['llvm-mutate'] + [i for j in cmd2 for i in j],
+                           stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE,
+                           input=init_src)
     child2 = creator.Individual(proc2.stdout)
     print(cmd2, file=errlog, flush=True)
     print(proc2.stderr.decode(), file=errlog, flush=True)
@@ -168,13 +164,12 @@ def cxOnePointLLVM(ind1, ind2, init_src, kernel, stats):
     print('c', end='', flush=True)
     return ind1, ind2
 
-
 def translate_llvmIR_ptx(llvmIR_str, outFileName="a.ptx"):
-    proc = subprocess.run( ['llc', '-o', outFileName],
-                           stdout=subprocess.PIPE,
-                           input=llvmIR_str )
+    proc = subprocess.run(['llc', '-o', outFileName],
+                          stdout=subprocess.PIPE,
+                          input=llvmIR_str)
     if proc.returncode is not 0:
-        print (proc.stderr)
+        print(proc.stderr)
         raise Exception('llc error')
 
 def link_and_run(individual, kernel, stats):
@@ -185,10 +180,10 @@ def link_and_run(individual, kernel, stats):
     with open('a.ll', 'w') as f:
         f.write(individual.decode())
 
-    # proc = subprocess.Popen(['nvprof', '--csv', '-u', 'us',
-    proc = subprocess.Popen(['/usr/local/cuda/bin/nvprof', '--unified-memory-profiling', 'off', '--csv', '-u', 'us',
+    proc = subprocess.Popen(['nvprof', '--csv', '-u', 'us',
+    # proc = subprocess.Popen(['/usr/local/cuda/bin/nvprof', '--unified-memory-profiling', 'off', '--csv', '-u', 'us',
                              './'+cudaAppName],
-                              stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
         stdout, stderr = proc.communicate(timeout=30) # second
         retcode = proc.poll()
@@ -197,7 +192,7 @@ def link_and_run(individual, kernel, stats):
             print(stderr.decode(), file=errlog)
             raise Exception('nvprof error')
     except subprocess.TimeoutExpired:
-        # Offentimes terminating nvprof will not terminate the underlying cuda program
+        # Sometimes terminating nvprof will not terminate the underlying cuda program
         # if that program is corrupted. So issue the kill command to those cuda app first
         print('8', end='', flush=True)
         subprocess.run(['killall', cudaAppName])
@@ -232,7 +227,6 @@ def link_and_run(individual, kernel, stats):
 
         raise Exception("{} is not a valid kernel function from nvprof".format(kernel))
 
-
 def readLLVMsrc(str_encode):
     I = creator.Individual(str_encode)
     I.line_size = lineSize(I)
@@ -244,7 +238,7 @@ def evole(llvm_src_filename: str, entry_kernel, stats):
         f = open(llvm_src_filename, 'r')
         init_src_enc = f.read().encode()
     except IOError:
-        print ("File {} does not exist".format(llvm_src_filename))
+        print("File {} does not exist".format(llvm_src_filename))
         exit()
 
     history = tools.History()
@@ -269,7 +263,7 @@ def evole(llvm_src_filename: str, entry_kernel, stats):
     # compile the initial llvm-IR into ptx and store it for later comparision
     translate_llvmIR_ptx(pop[0], "origin.ptx")
 
-    # Initial mutate to get diversed population
+    # Initial 3x mutate to get diverse population
     for ind in pop:
         toolbox.mutate(ind)
         toolbox.mutate(ind)
@@ -287,11 +281,7 @@ def evole(llvm_src_filename: str, entry_kernel, stats):
         count = count + 1
     fp.close()
 
-    # pop[0].fitness.values = toolbox.evaluate(pop[0])
-    # for ind in pop:
-    #     ind.fitness.values = pop[0].fitness.values
-
-    fitnesses = [ ind.fitness.values for ind in pop ]
+    fitnesses = [ind.fitness.values for ind in pop]
     fits = [ind.fitness.values[0] for ind in pop]
 
     generations = 0
@@ -342,7 +332,7 @@ def evole(llvm_src_filename: str, entry_kernel, stats):
 
         # Evaluate the individuals with an invalid fitness
         invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-        fitnesses = [ toolbox.evaluate(ind) for ind in invalid_ind ]
+        fitnesses = [toolbox.evaluate(ind) for ind in invalid_ind]
         for ind, fit in zip(invalid_ind, fitnesses):
             ind.fitness.values = fit
 
