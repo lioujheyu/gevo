@@ -23,6 +23,8 @@ creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
 # We need something mutable in python so that the mutation and crossover are able to modify the individual in-place
 creator.create("Individual", bytearray, fitness=creator.FitnessMin, line_size=0, cmd=[])
 
+errlog = open('error_log', 'w')
+
 def rearrage(cmd):
     c_cmd = [c for c in cmd if c[0] == '-c']
     r_cmd = [c for c in cmd if c[0] == '-r']
@@ -112,7 +114,7 @@ def cxOnePointLLVM(ind1, ind2, init_src, kernel, stats):
             break
     if (len(ind1.cmd)-1) <= start_point and (len(ind2.cmd)-1) <= start_point:
         print("s:{}, i:{}, i:{}. no meaningful crossover".format(start_point, len(ind1.cmd)-1, len(ind2.cmd)-1),
-              file=sys.stderr)
+              file=errlog)
         # Exist no meaningful crossover
         return ind1, ind2
 
@@ -138,8 +140,8 @@ def cxOnePointLLVM(ind1, ind2, init_src, kernel, stats):
                             stderr=subprocess.PIPE,
                             input=init_src )
     child1 = creator.Individual(proc1.stdout)
-    print(cmd1, file=sys.stderr, flush=True)
-    print(proc1.stderr.decode(), file=sys.stderr, flush=True)
+    print(cmd1, file=errlog, flush=True)
+    print(proc1.stderr.decode(), file=errlog, flush=True)
     fit1 = [0]
     if proc1.returncode == 0:
         fit1 = link_and_run(child1, kernel, stats)
@@ -153,8 +155,8 @@ def cxOnePointLLVM(ind1, ind2, init_src, kernel, stats):
                             stderr=subprocess.PIPE,
                             input=init_src )
     child2 = creator.Individual(proc2.stdout)
-    print(cmd2, file=sys.stderr, flush=True)
-    print(proc2.stderr.decode(), file=sys.stderr, flush=True)
+    print(cmd2, file=errlog, flush=True)
+    print(proc2.stderr.decode(), file=errlog, flush=True)
     fit2 = [0]
     if proc2.returncode == 0:
         fit2 = link_and_run(child2, kernel, stats)
@@ -192,7 +194,7 @@ def link_and_run(individual, kernel, stats):
         retcode = proc.poll()
         # retcode == 9: error is from testing program, not nvprof
         if retcode != 9 and retcode != 0:
-            print(stderr.decode(), file=sys.stderr)
+            print(stderr.decode(), file=errlog)
             raise Exception('nvprof error')
     except subprocess.TimeoutExpired:
         # Offentimes terminating nvprof will not terminate the underlying cuda program
