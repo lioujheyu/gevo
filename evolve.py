@@ -309,6 +309,8 @@ class evolution:
             elite = list(map(toolbox.clone, elite))
             with open("best-{}.ll".format(generations-1), 'w') as f:
                 f.write(elite[0].srcEnc.decode())
+            with open("best-{}.edit".format(generations-1), 'w') as f:
+                f.write(elite[0].edits)
 
             for child1, child2 in zip(offspring[::2], offspring[1::2]):
                 if len(child1.edits) < 2 and len(child2.edits) < 2:
