@@ -7,6 +7,7 @@ import csv
 import json
 import re
 import pathlib
+import sys
 from io import StringIO
 
 # import matplotlib.pyplot as plt
@@ -20,7 +21,7 @@ creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
 # We need something mutable in python so that the mutation and crossover are able to modify the individual in-place
 creator.create("Individual", bytearray, fitness=creator.FitnessMin, line_size=0, cmd=[])
 
-errlog = open('error_log', 'w')
+log = open('debug_log', 'w')
 
 def rearrage(cmd):
     c_cmd = [c for c in cmd if c[0] == '-c']
@@ -39,7 +40,7 @@ def lineSize(individual):
                                         input=individual,
                                         check=True )
     except subprocess.CalledProcessError as err:
-        print (err.stderr)
+        print(err.stderr, file=sys.stderr)
         raise Exception('llvm-mutate error')
 
     return int(readline_proc.stderr.decode())
@@ -83,7 +84,7 @@ def mutLLVM(individual, kernel, stats):
                 break
 
         if result == None:
-            print(proc.stderr.decode())
+            print(proc.stderr.decode(), file=sys.stderr)
             raise Exception("Could not understand the result from llvm-mutate")
 
         if op == 'c':
@@ -110,7 +111,7 @@ def cxOnePointLLVM(ind1, ind2, init_src, kernel, stats):
             break
     if (len(ind1.cmd)-1) <= start_point and (len(ind2.cmd)-1) <= start_point:
         print("s:{}, i:{}, i:{}. meaningless crossover".format(start_point, len(ind1.cmd)-1, len(ind2.cmd)-1),
-              file=errlog)
+              file=log)
         # Exist no meaningful crossover
         return ind1, ind2
 
@@ -136,8 +137,8 @@ def cxOnePointLLVM(ind1, ind2, init_src, kernel, stats):
                            stderr=subprocess.PIPE,
                            input=init_src)
     child1 = creator.Individual(proc1.stdout)
-    print(cmd1, file=errlog, flush=True)
-    print(proc1.stderr.decode(), file=errlog, flush=True)
+    print(cmd1, file=log, flush=True)
+    print(proc1.stderr.decode(), file=log, flush=True)
     fit1 = [0]
     if proc1.returncode == 0:
         fit1 = link_and_run(child1, kernel, stats)
@@ -151,8 +152,8 @@ def cxOnePointLLVM(ind1, ind2, init_src, kernel, stats):
                            stderr=subprocess.PIPE,
                            input=init_src)
     child2 = creator.Individual(proc2.stdout)
-    print(cmd2, file=errlog, flush=True)
-    print(proc2.stderr.decode(), file=errlog, flush=True)
+    print(cmd2, file=log, flush=True)
+    print(proc2.stderr.decode(), file=log, flush=True)
     fit2 = [0]
     if proc2.returncode == 0:
         fit2 = link_and_run(child2, kernel, stats)
@@ -180,16 +181,19 @@ def link_and_run(individual, kernel, stats):
     with open('a.ll', 'w') as f:
         f.write(individual.decode())
 
-    proc = subprocess.Popen(['nvprof', '--csv', '-u', 'us',
-    # proc = subprocess.Popen(['/usr/local/cuda/bin/nvprof', '--unified-memory-profiling', 'off', '--csv', '-u', 'us',
+    # proc = subprocess.Popen(['nvprof', '--csv', '-u', 'us',
+    proc = subprocess.Popen(['/usr/local/cuda/bin/nvprof',
+                             '--unified-memory-profiling', 'off',
+                             '--csv',
+                             '-u', 'us',
                              './'+cudaAppName],
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                            stdout=subprocess.PIPE,stderr=subprocess.PIPE)
     try:
         stdout, stderr = proc.communicate(timeout=30) # second
         retcode = proc.poll()
         # retcode == 9: error is from testing program, not nvprof
         if retcode != 9 and retcode != 0:
-            print(stderr.decode(), file=errlog)
+            print(stderr.decode(), file=sys.stderr)
             raise Exception('nvprof error')
     except subprocess.TimeoutExpired:
         # Sometimes terminating nvprof will not terminate the underlying cuda program
@@ -202,7 +206,8 @@ def link_and_run(individual, kernel, stats):
         return 0,
 
     program_output = stdout.decode()
-    if program_output.find("Total Errors = 0") == -1:
+    # if program_output.find("Total Errors = 0") == -1:
+    if program_output.find("Test passed") == -1:
         print('x', end='', flush=True)
         stats['invalid'] = stats['invalid'] + 1
         return 0,
@@ -233,7 +238,10 @@ def readLLVMsrc(str_encode):
     I.cmd = []
     return I
 
-def evole(llvm_src_filename: str, entry_kernel, stats):
+def evolve(llvm_src_filename: str, entry_kernel, stats):
+    for i in range(0, len(entry_kernel)):
+        entry_kernel[i] = entry_kernel[i] + '('
+
     try:
         f = open(llvm_src_filename, 'r')
         init_src_enc = f.read().encode()
@@ -257,7 +265,7 @@ def evole(llvm_src_filename: str, entry_kernel, stats):
     toolbox.decorate("mate", history.decorator)
     toolbox.decorate("mutate", history.decorator)
 
-    pop = toolbox.population(n=100)
+    pop = toolbox.population(n=5)
     popSize = len(pop)
     history.update(pop)
     # compile the initial llvm-IR into ptx and store it for later comparision
@@ -366,9 +374,20 @@ def evole(llvm_src_filename: str, entry_kernel, stats):
     # plt.savefig('genealogy.png')
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="Evolve CUDA kernel function")
+    parser.add_argument('-k', '--kernel', help="Target kernel function. Use comma to separate kernels.")
+    args = parser.parse_args()
+
+    if args.kernel is None:
+        print("Please specify the target kernel.",file=sys.stderr)
+        parser.print_help()
+        exit(1)
+
+    kernel = args.kernel.split(',')
+
     stats = {'valid':0, 'invalid':0, 'infinite':0}
     try:
-        evole('cuda-device-only-kernel.ll', ['matrixMul_naive'], stats)
+        evolve('cuda-device-only-kernel.ll', kernel, stats)
     except KeyboardInterrupt:
         print("valid variant:   {}".format(stats['valid']))
         print("invalid variant: {}".format(stats['invalid']))
