@@ -16,10 +16,12 @@ from deap import base
 from deap import creator
 from deap import tools
 
+sys.path.append('/home/jliou4/genetic-programming/cuda_evolve')
+import irind
+
 # Run shorter is better
 creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
-# We need something mutable in python so that the mutation and crossover are able to modify the individual in-place
-creator.create("Individual", bytearray, fitness=creator.FitnessMin, line_size=0, cmd=[])
+creator.create("Individual", irind.llvmIRrep, fitness=creator.FitnessMin)
 
 class evolution:
     # Parameters
@@ -55,40 +57,16 @@ class evolution:
             print("File {} does not exist".format(llvm_src_filename))
             exit(1)
 
-    @staticmethod
-    def rearrage(cmd):
-        c_cmd = [c for c in cmd if c[0] == '-c']
-        r_cmd = [c for c in cmd if c[0] == '-r']
-        i_cmd = [c for c in cmd if c[0] == '-i']
-        s_cmd = [c for c in cmd if c[0] == '-s']
-
-        cmd[:] = s_cmd + i_cmd + r_cmd + c_cmd
-        return cmd
-
-    @staticmethod
-    def lineSize(individual):
-        try:
-            readline_proc = subprocess.run( ['llvm-mutate', '-I'],
-                                            stdout=subprocess.PIPE,
-                                            stderr=subprocess.PIPE,
-                                            input=individual,
-                                            check=True )
-        except subprocess.CalledProcessError as err:
-            print(err.stderr, file=sys.stderr)
-            raise Exception('llvm-mutate error')
-
-        return int(readline_proc.stderr.decode())
-
     def mutLLVM(self, individual):
         trial = 0
         # cut, replace, insert, swap
         operations = ['c', 'r', 'i', 's']
-        while trial < individual.line_size:
+        while trial < individual.lineSize:
             trial = trial + 1
-            line1 = random.randint(1, individual.line_size)
-            line2 = random.randint(1, individual.line_size)
+            line1 = random.randint(1, individual.lineSize)
+            line2 = random.randint(1, individual.lineSize)
             while line1 == line2:
-                line2 = random.randint(1, individual.line_size)
+                line2 = random.randint(1, individual.lineSize)
 
             op = random.choice(operations)
             mut_command = ['llvm-mutate']
@@ -100,7 +78,7 @@ class evolution:
             proc = subprocess.run(mut_command,
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE,
-                                  input=individual)
+                                  input=individual.srcEnc)
             if(proc.returncode != 0 or
                proc.stderr.decode().find('mismatch') != -1 or
                proc.stderr.decode().find('no use') != -1):
@@ -126,9 +104,8 @@ class evolution:
             else:
                 inst_UID = ('-'+op, result.group(1) + ',' + result.group(3))
 
-            individual[:] = bytearray(proc.stdout)
-            individual.line_size = self.lineSize(individual)
-            individual.cmd.append(inst_UID)
+            individual.update(srcEnc=proc.stdout)
+            individual.edits.append(inst_UID)
             individual.fitness.values = fit
             return individual,
 
@@ -138,13 +115,13 @@ class evolution:
     def cxOnePointLLVM(self, ind1, ind2):
         # check whether they have the same starting edits(accessor)
         start_point = 0
-        for edit1, edit2 in zip(ind1.cmd, ind2.cmd):
+        for edit1, edit2 in zip(ind1.edits, ind2.edits):
             if edit1 == edit2:
                 start_point = start_point + 1
             else:
                 break
-        if (len(ind1.cmd)-1) <= start_point and (len(ind2.cmd)-1) <= start_point:
-            print("s:{}, i:{}, i:{}. meaningless crossover".format(start_point, len(ind1.cmd)-1, len(ind2.cmd)-1),
+        if (len(ind1.edits)-1) <= start_point and (len(ind2.edits)-1) <= start_point:
+            print("s:{}, i:{}, i:{}. meaningless crossover".format(start_point, len(ind1.edits)-1, len(ind2.edits)-1),
                   file=self.log)
             # Exist no meaningful crossover
             return ind1, ind2
@@ -152,19 +129,16 @@ class evolution:
         point1 = start_point
         point2 = start_point
         while point1 == start_point and point2 == start_point:
-            if len(ind1.cmd) > start_point:
-                point1 = random.randint(start_point, len(ind1.cmd)-1)
-            if len(ind2.cmd) > start_point:
-                point2 = random.randint(start_point, len(ind2.cmd)-1)
+            if len(ind1.edits) > start_point:
+                point1 = random.randint(start_point, len(ind1.edits)-1)
+            if len(ind2.edits) > start_point:
+                point2 = random.randint(start_point, len(ind2.edits)-1)
 
-        cmd1 = ind1.cmd[:point1] + ind2.cmd[point2:]
-        cmd2 = ind2.cmd[:point2] + ind1.cmd[point1:]
-        # this set approach reduces the duplicate edits in the list
-        cmd1[:] = list(set(cmd1))
-        cmd2[:] = list(set(cmd2))
-        # rearrage cmd to reduce the fail chance of edit
-        self.rearrage(cmd1)
-        self.rearrage(cmd2)
+        cmd1 = ind1.edits[:point1] + ind2.edits[point2:]
+        cmd2 = ind2.edits[:point2] + ind1.edits[point1:]
+
+        irind.rearrage(cmd1)
+        irind.rearrage(cmd2)
 
         proc1 = subprocess.run(['llvm-mutate'] + [i for j in cmd1 for i in j],
                                stdout=subprocess.PIPE,
@@ -177,9 +151,9 @@ class evolution:
         if proc1.returncode == 0:
             fit1 = self.link_and_run(child1)
         if fit1[0] != 0:
-            ind1[:] = bytearray(proc1.stdout)
+            ind1.update(proc1.stdout)
+            ind1.edits = cmd1
             ind1.fitness.values = fit1
-            ind1.line_size = self.lineSize(ind1)
 
         proc2 = subprocess.run(['llvm-mutate'] + [i for j in cmd2 for i in j],
                                stdout=subprocess.PIPE,
@@ -192,26 +166,18 @@ class evolution:
         if proc2.returncode == 0:
             fit2 = self.link_and_run(child2)
         if fit2[0] != 0:
-            ind2[:] = bytearray(proc2.stdout)
+            ind2.update(proc2.stdout)
+            ind2.edits = cmd2
             ind2.fitness.values = fit2
-            ind2.line_size = self.lineSize(ind2)
 
         print('c', end='', flush=True)
         return ind1, ind2
 
-    def translate_llvmIR_ptx(self, llvmIR_str, outFileName="a.ptx"):
-        proc = subprocess.run(['llc', '-o', outFileName],
-                              stdout=subprocess.PIPE,
-                              input=llvmIR_str)
-        if proc.returncode is not 0:
-            print(proc.stderr)
-            raise Exception('llc error')
-
     def link_and_run(self, individual):
         # link
-        self.translate_llvmIR_ptx(individual)
+        individual.ptx(self.cudaPTX)
         with open('a.ll', 'w') as f:
-            f.write(individual.decode())
+            f.write(individual.srcEnc.decode())
 
         # proc = subprocess.Popen(['nvprof', '--csv', '-u', 'us',
         proc = subprocess.Popen(['/usr/local/cuda/bin/nvprof',
@@ -264,13 +230,7 @@ class evolution:
 
             raise Exception("{} is not a valid kernel function from nvprof".format(self.kernels))
 
-    def readLLVMsrc(self, str_encode):
-        I = creator.Individual(str_encode)
-        I.line_size = self.lineSize(I)
-        I.cmd = []
-        return I
-
-    def evolve(self):
+    def evolve(self, resume):
         history = tools.History()
         toolbox = base.Toolbox()
 
@@ -278,36 +238,49 @@ class evolution:
         toolbox.register('mutate', self.mutLLVM)
         toolbox.register('mate', self.cxOnePointLLVM)
         toolbox.register('select', tools.selTournament, tournsize=2)
-        toolbox.register('individual', self.readLLVMsrc)
+        toolbox.register('individual', creator.Individual, srcEnc=self.initSrcEnc)
         toolbox.register('population', tools.initRepeat, list, toolbox.individual)
 
         # Decorate the variation operators
         toolbox.decorate("mate", history.decorator)
         toolbox.decorate("mutate", history.decorator)
 
-        self.pop = toolbox.population(n=100)
+        if resume == False:
+            self.pop = toolbox.population(n=100)
+            # compile the initial llvm-IR into ptx and store it for later comparision
+            self.pop[0].ptx('origin.ptx')
+
+            # Initial 3x mutate to get diverse population
+            for ind in self.pop:
+                toolbox.mutate(ind)
+                toolbox.mutate(ind)
+                toolbox.mutate(ind)
+
+            pathlib.Path('stage').mkdir(exist_ok=True)
+            with open("stage/startedits.json", 'w') as fp:
+                count = 0
+                allEdits = [ind.edits for ind in self.pop]
+                json.dump(allEdits, fp, indent=2)
+        else:
+            try:
+                allEdits = json.load(open('stage/startedits.json'))
+                print(allEdits)
+            except:
+                print(sys.exc_info())
+                exit(1)
+
+            self.pop = toolbox.population(n=len(allEdits))
+            for edits, ind in zip(allEdits, self.pop):
+                editsList = []
+                for e in edits:
+                    editsList.append((e[0], e[1]))
+                ind.edits = editsList
+                if ind.update_from_edits() == False:
+                    raise Exception("Could not reconstruct ind from edits:{}".format(editsList))
+                ind.fitness.values = self.link_and_run(ind)
+
         popSize = len(self.pop)
         history.update(self.pop)
-        # compile the initial llvm-IR into ptx and store it for later comparision
-        self.translate_llvmIR_ptx(self.pop[0], "origin.ptx")
-
-        # Initial 3x mutate to get diverse population
-        for ind in self.pop:
-            toolbox.mutate(ind)
-            toolbox.mutate(ind)
-            toolbox.mutate(ind)
-
-        pathlib.Path('stage').mkdir(exist_ok=True)
-        fp = open("stage/initcmd.json", 'w')
-        count = 0
-        all_cmd = [ind.cmd for ind in self.pop]
-        json.dump(all_cmd, fp, indent=2)
-        for ind in self.pop:
-            filename = "stage/" + str(count) + ".ll"
-            with open(filename, 'w') as f:
-                f.write(ind.decode())
-            count = count + 1
-        fp.close()
 
         fitnesses = [ind.fitness.values for ind in self.pop]
         fits = [ind.fitness.values[0] for ind in self.pop]
@@ -335,10 +308,10 @@ class evolution:
             offspring = list(map(toolbox.clone, offspring))
             elite = list(map(toolbox.clone, elite))
             with open("best-{}.ll".format(generations-1), 'w') as f:
-                f.write(elite[0].decode())
+                f.write(elite[0].srcEnc.decode())
 
             for child1, child2 in zip(offspring[::2], offspring[1::2]):
-                if len(child1.cmd) < 2 and len(child2.cmd) < 2:
+                if len(child1.edits) < 2 and len(child2.edits) < 2:
                     continue
                 if random.random() < self.CXPB:
                     toolbox.mate(child1, child2)
@@ -356,8 +329,8 @@ class evolution:
             for ind, fit in zip(invalid_ind, fitnesses):
                 ind.fitness.values = fit
 
-            self.pop[:] = offspring + elite
-            # pop[:] = offspring
+            # self.pop[:] = offspring + elite
+            self.pop[:] = offspring
 
             # Gather all the fitnesses in one list and print the stats
             fits = [ind.fitness.values[0] for ind in self.pop]
@@ -380,6 +353,8 @@ class evolution:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Evolve CUDA kernel function")
     parser.add_argument('-k', '--kernel', help="Target kernel function. Use comma to separate kernels.")
+    parser.add_argument('-r', '--resume', action='store_true',
+        help="Resume the process from genetating the population by reading initedits.json")
     args = parser.parse_args()
 
     if args.kernel is None:
@@ -391,7 +366,7 @@ if __name__ == '__main__':
     evo = evolution(kernel)
 
     try:
-        evo.evolve()
+        evo.evolve(args.resume)
     except KeyboardInterrupt:
         print("valid variant:   {}".format(evo.stats['valid']))
         print("invalid variant: {}".format(evo.stats['invalid']))
