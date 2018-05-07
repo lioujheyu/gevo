@@ -246,9 +246,8 @@ class evolution:
         toolbox.decorate("mutate", history.decorator)
 
         if resume == False:
+            print("Initialize the population ...")
             self.pop = toolbox.population(n=100)
-            # compile the initial llvm-IR into ptx and store it for later comparision
-            self.pop[0].ptx('origin.ptx')
 
             # Initial 3x mutate to get diverse population
             for ind in self.pop:
@@ -269,6 +268,7 @@ class evolution:
                 print(sys.exc_info())
                 exit(1)
 
+            print("Resume the population from stage/startedits.json ...")
             self.pop = toolbox.population(n=len(allEdits))
             for edits, ind in zip(allEdits, self.pop):
                 editsList = []
@@ -310,7 +310,7 @@ class evolution:
             with open("best-{}.ll".format(generations-1), 'w') as f:
                 f.write(elite[0].srcEnc.decode())
             with open("best-{}.edit".format(generations-1), 'w') as f:
-                f.write(elite[0].edits)
+                print(elite[0].edits, file=f)
 
             for child1, child2 in zip(offspring[::2], offspring[1::2]):
                 if len(child1.edits) < 2 and len(child2.edits) < 2:

@@ -27,7 +27,9 @@ class llvmIRrep:
 
     def __init__(self, srcEnc, edits=None):
         self.srcEnc = srcEnc
-        if edits is not None:
+        if edits is None:
+            self.edits = []
+        else:
             self.edits = edits
         self.update_linesize()
 
