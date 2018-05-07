@@ -263,7 +263,6 @@ class evolution:
         else:
             try:
                 allEdits = json.load(open('stage/startedits.json'))
-                print(allEdits)
             except:
                 print(sys.exc_info())
                 exit(1)
@@ -331,8 +330,8 @@ class evolution:
             for ind, fit in zip(invalid_ind, fitnesses):
                 ind.fitness.values = fit
 
-            # self.pop[:] = offspring + elite
-            self.pop[:] = offspring
+            self.pop[:] = offspring + elite
+            # self.pop[:] = offspring
 
             # Gather all the fitnesses in one list and print the stats
             fits = [ind.fitness.values[0] for ind in self.pop]
