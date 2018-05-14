@@ -61,7 +61,7 @@ class evolution:
         try:
             self.compareMethod = json.load(open(compare_filename))
         except IOError:
-            print("File {} does not exist".format(llvm_src_filename))
+            print("File {} does not exist".format(compare_filename))
             exit(1)
 
     def printGen(self, gen):
