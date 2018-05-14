@@ -38,7 +38,7 @@ class evolution:
         'maxFit':[], 'avgFit':[], 'minFit':[]
     }
 
-    def __init__(self, kernel, bin, args,
+    def __init__(self, kernel, bin, args="",
                  llvm_src_filename='cuda-device-only-kernel.ll',
                  compare_filename="compare.json",
                  CXPB=0.8, MUPB=0.1):
@@ -46,7 +46,7 @@ class evolution:
         self.MUPB = MUPB
         self.kernels = kernel
         self.appBinary = bin
-        self.appArgs = args
+        self.appArgs = "" if args is None else args
         for i in range(0, len(self.kernels)):
             self.kernels[i] = self.kernels[i] + '('
 
@@ -215,7 +215,7 @@ class evolution:
                                  '--csv',
                                  '-u', 'us',
                                  './' + self.appBinary, self.appArgs],
-                                stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
             stdout, stderr = proc.communicate(timeout=30) # second
             retcode = proc.poll()
