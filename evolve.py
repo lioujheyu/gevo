@@ -120,6 +120,8 @@ class evolution:
 
             if result == None:
                 print(proc.stderr.decode(), file=sys.stderr)
+                individual.ptx('error.ptx')
+                print(*mut_command)
                 raise Exception("Could not understand the result from llvm-mutate")
 
             if op == 'c':
