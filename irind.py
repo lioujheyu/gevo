@@ -49,16 +49,7 @@ class llvmIRrep:
 
     def update(self, srcEnc):
         self.srcEnc = srcEnc
-        try:
-            readline_proc = subprocess.run(['llvm-mutate', '-I'],
-                                           stdout=subprocess.PIPE,
-                                           stderr=subprocess.PIPE,
-                                           input=self.srcEnc,
-                                           check=True )
-        except subprocess.CalledProcessError as err:
-            print(err.stderr, file=sys.stderr)
-            raise Exception('llvm-mutate error in calculating line size')
-        self.lineSize = int(readline_proc.stderr.decode())
+        self.update_linesize()
 
     def update_from_edits(self):
         proc = subprocess.run(['llvm-mutate'] + [arg for edit in self.edits for arg in edit],
@@ -69,7 +60,7 @@ class llvmIRrep:
             print(proc.stderr.decode())
             return False
 
-        self.srcEnc = proc.stdout
+        self.update(proc.stdout)
         return True
 
     def rearrage(self):
