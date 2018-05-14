@@ -13,6 +13,7 @@ def rearrage(cmd):
     s_cmd = [c for c in cmd if c[0] == '-s']
 
     cmd = s_cmd + i_cmd + r_cmd + c_cmd
+    return cmd
 
 def diff(edits1, edits2):
     sharedEdits = set(edits1).intersection(edits2)

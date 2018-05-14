@@ -8,6 +8,7 @@ import json
 import re
 import pathlib
 import sys
+import filecmp
 from io import StringIO
 
 # import matplotlib.pyplot as plt
@@ -28,13 +29,10 @@ class evolution:
     log = open('debug_log', 'w')
     appBinary = 'a.out'
     cudaPTX = 'a.ptx'
-    initSrcEnc = ""
-    kernels = []
-    CXPB = 0.0
-    MUPB = 0.0
 
     # Content
     pop = []
+    generation = 0
 
     stats = {
         'valid':0, 'invalid':0, 'infinite':0,
@@ -43,6 +41,7 @@ class evolution:
 
     def __init__(self, kernel,
                  llvm_src_filename='cuda-device-only-kernel.ll',
+                 compare_filename="compare.json",
                  CXPB=0.8, MUPB=0.1):
         self.CXPB = CXPB
         self.MUPB = MUPB
@@ -53,9 +52,33 @@ class evolution:
         try:
             f = open(llvm_src_filename, 'r')
             self.initSrcEnc = f.read().encode()
+            f.close()
         except IOError:
             print("File {} does not exist".format(llvm_src_filename))
             exit(1)
+
+        try:
+            self.compareMethod = json.load(open(compare_filename))
+        except IOError:
+            print("File {} does not exist".format(llvm_src_filename))
+            exit(1)
+
+    def printGen(self, gen):
+        print("-- Generation %s --" % gen)
+        print("  Max %s" % self.stats['maxFit'][gen])
+        print("  Avg %s" % self.stats['avgFit'][gen])
+        print("  Min %s" % self.stats['minFit'][gen])
+
+    def resultCompare(self, stdout_string):
+        if self.compareMethod['source'] == 'stdout':
+            src = stdout_string
+        else:
+            src = self.compareMethod['source']
+
+        if self.compareMethod['mode'] == 'string':
+            return False if src.find(self.compareMethod['golden']) == -1 else True
+        elif self.compareMethod['mode'] == 'file':
+            return filecmp.cmp(src, self.compareMethod['golden'])
 
     def mutLLVM(self, individual):
         trial = 0
@@ -85,7 +108,7 @@ class evolution:
                 continue
 
             test_ind = creator.Individual(proc.stdout)
-            fit = self.link_and_run(test_ind)
+            fit = self.evaluate(test_ind)
             if fit[0] == 0:
                 continue
 
@@ -137,8 +160,8 @@ class evolution:
         cmd1 = ind1.edits[:point1] + ind2.edits[point2:]
         cmd2 = ind2.edits[:point2] + ind1.edits[point1:]
 
-        irind.rearrage(cmd1)
-        irind.rearrage(cmd2)
+        cmd1 = irind.rearrage(cmd1)
+        cmd2 = irind.rearrage(cmd2)
 
         proc1 = subprocess.run(['llvm-mutate'] + [i for j in cmd1 for i in j],
                                stdout=subprocess.PIPE,
@@ -149,7 +172,7 @@ class evolution:
         print(proc1.stderr.decode(), file=self.log, flush=True)
         fit1 = [0]
         if proc1.returncode == 0:
-            fit1 = self.link_and_run(child1)
+            fit1 = self.evaluate(child1)
         if fit1[0] != 0:
             ind1.update(proc1.stdout)
             ind1.edits = cmd1
@@ -164,7 +187,7 @@ class evolution:
         print(proc2.stderr.decode(), file=self.log, flush=True)
         fit2 = [0]
         if proc2.returncode == 0:
-            fit2 = self.link_and_run(child2)
+            fit2 = self.evaluate(child2)
         if fit2[0] != 0:
             ind2.update(proc2.stdout)
             ind2.edits = cmd2
@@ -173,7 +196,7 @@ class evolution:
         print('c', end='', flush=True)
         return ind1, ind2
 
-    def link_and_run(self, individual):
+    def evaluate(self, individual):
         # link
         individual.ptx(self.cudaPTX)
         with open('a.ll', 'w') as f:
@@ -204,8 +227,7 @@ class evolution:
             return 0,
 
         program_output = stdout.decode()
-        if program_output.find("Total Errors = 0") == -1:
-        # if program_output.find("Test passed") == -1:
+        if self.resultCompare(program_output) == False:
             print('x', end='', flush=True)
             self.stats['invalid'] = self.stats['invalid'] + 1
             return 0,
@@ -213,8 +235,7 @@ class evolution:
             print('.', end='', flush=True)
             self.stats['valid'] = self.stats['valid'] + 1
             profile_output = stderr.decode()
-            f = StringIO(profile_output)
-            csv_list = list(csv.reader(f, delimiter=','))
+            csv_list = list(csv.reader(StringIO(profile_output), delimiter=','))
 
             # search for kernel function(s)
             kernel_time = []
@@ -234,7 +255,6 @@ class evolution:
         history = tools.History()
         toolbox = base.Toolbox()
 
-        toolbox.register('evaluate', self.link_and_run)
         toolbox.register('mutate', self.mutLLVM)
         toolbox.register('mate', self.cxOnePointLLVM)
         toolbox.register('select', tools.selTournament, tournsize=2)
@@ -270,13 +290,11 @@ class evolution:
             print("Resume the population from stage/startedits.json ...")
             self.pop = toolbox.population(n=len(allEdits))
             for edits, ind in zip(allEdits, self.pop):
-                editsList = []
-                for e in edits:
-                    editsList.append((e[0], e[1]))
+                editsList = [(e[0], e[1]) for e in edits]
                 ind.edits = editsList
                 if ind.update_from_edits() == False:
                     raise Exception("Could not reconstruct ind from edits:{}".format(editsList))
-                ind.fitness.values = self.link_and_run(ind)
+                ind.fitness.values = self.evaluate(ind)
 
         popSize = len(self.pop)
         history.update(self.pop)
@@ -284,32 +302,25 @@ class evolution:
         fitnesses = [ind.fitness.values for ind in self.pop]
         fits = [ind.fitness.values[0] for ind in self.pop]
 
-        generations = 0
-
-        print("-- Generation 0 --")
         self.stats['maxFit'].append(max(fits))
         self.stats['avgFit'].append((sum(fits)/len(fits)))
         self.stats['minFit'].append(min(fits))
-        print("  Max %s" % self.stats['maxFit'][-1])
-        print("  Avg %s" % self.stats['avgFit'][-1])
-        print("  Min %s" % self.stats['minFit'][-1])
+        self.printGen(self.generation)
 
-        # while generations < 100:
+        # while generation < 100:
         while True:
-            generations = generations + 1
-            count = 0
-            print("-- Generation %i --" % generations)
-
             offspring = toolbox.select(self.pop, popSize)
             # Preserve individual who has the highest fitness
             elite = tools.selBest(self.pop, 1)
             # Clone the selected individuals
             offspring = list(map(toolbox.clone, offspring))
             elite = list(map(toolbox.clone, elite))
-            with open("best-{}.ll".format(generations-1), 'w') as f:
+            with open("best-{}.ll".format(self.generation), 'w') as f:
                 f.write(elite[0].srcEnc.decode())
-            with open("best-{}.edit".format(generations-1), 'w') as f:
+            with open("best-{}.edit".format(self.generation), 'w') as f:
                 print(elite[0].edits, file=f)
+
+            self.generation = self.generation + 1
 
             for child1, child2 in zip(offspring[::2], offspring[1::2]):
                 if len(child1.edits) < 2 and len(child2.edits) < 2:
@@ -317,6 +328,7 @@ class evolution:
                 if random.random() < self.CXPB:
                     toolbox.mate(child1, child2)
 
+            count = 0
             for mutant in offspring:
                 if random.random() < self.MUPB:
                     count = count + 1
@@ -326,7 +338,7 @@ class evolution:
 
             # Evaluate the individuals with an invalid fitness
             invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-            fitnesses = [toolbox.evaluate(ind) for ind in invalid_ind]
+            fitnesses = [self.evaluate(ind) for ind in invalid_ind]
             for ind, fit in zip(invalid_ind, fitnesses):
                 ind.fitness.values = fit
 
@@ -340,13 +352,11 @@ class evolution:
             self.stats['avgFit'].append((sum(fits)/len(fits)))
             self.stats['minFit'].append(min(fits))
             print("")
-            print("  Max %s" % self.stats['maxFit'][-1])
-            print("  Avg %s" % self.stats['avgFit'][-1])
-            print("  Min %s" % self.stats['minFit'][-1])
+            self.printGen(self.generation)
 
         # graph = nx.DiGraph(history.genealogy_tree)
         # graph = graph.reverse()     # Make the graph top-down
-        # colors = [toolbox.evaluate(history.genealogy_history[i])[0] for i in graph]
+        # colors = [self.evaluate(history.genealogy_history[i])[0] for i in graph]
         # pos = nx.nx_agraph.graphviz_layout(graph, prog='dot')
         # nx.draw(graph, pos, node_color=colors)
         # plt.savefig('genealogy.png')
