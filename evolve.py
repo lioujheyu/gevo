@@ -109,7 +109,7 @@ class evolution:
             individual.fitness.values = fit
             return individual,
 
-        print("Cannot get mutant to be compiled in {} trials".format(individual.line_size))
+        print("Cannot get mutant to be compiled in {} trials".format(individual.lineSize))
         return individual,
 
     def cxOnePointLLVM(self, ind1, ind2):
