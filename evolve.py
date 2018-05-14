@@ -27,7 +27,6 @@ creator.create("Individual", irind.llvmIRrep, fitness=creator.FitnessMin)
 class evolution:
     # Parameters
     log = open('debug_log', 'w')
-    appBinary = 'a.out'
     cudaPTX = 'a.ptx'
 
     # Content
@@ -39,13 +38,15 @@ class evolution:
         'maxFit':[], 'avgFit':[], 'minFit':[]
     }
 
-    def __init__(self, kernel,
+    def __init__(self, kernel, bin, args,
                  llvm_src_filename='cuda-device-only-kernel.ll',
                  compare_filename="compare.json",
                  CXPB=0.8, MUPB=0.1):
         self.CXPB = CXPB
         self.MUPB = MUPB
         self.kernels = kernel
+        self.appBinary = bin
+        self.appArgs = args
         for i in range(0, len(self.kernels)):
             self.kernels[i] = self.kernels[i] + '('
 
@@ -74,11 +75,15 @@ class evolution:
             src = stdout_string
         else:
             src = self.compareMethod['source']
+        golden = self.compareMethod['golden']
 
         if self.compareMethod['mode'] == 'string':
-            return False if src.find(self.compareMethod['golden']) == -1 else True
+            return False if src.find(golden) == -1 else True
         elif self.compareMethod['mode'] == 'file':
-            return filecmp.cmp(src, self.compareMethod['golden'])
+            try:
+                return filecmp.cmp(src, golden)
+            except IOError:
+                print("File {} or {} cannot be found".format(src, golden))
 
     def mutLLVM(self, individual):
         trial = 0
@@ -209,7 +214,7 @@ class evolution:
                                  '--unified-memory-profiling', 'off',
                                  '--csv',
                                  '-u', 'us',
-                                 './' + self.appBinary],
+                                 './' + self.appBinary, self.appArgs],
                                 stdout=subprocess.PIPE,stderr=subprocess.PIPE)
         try:
             stdout, stderr = proc.communicate(timeout=30) # second
@@ -366,17 +371,21 @@ class evolution:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Evolve CUDA kernel function")
     parser.add_argument('-k', '--kernel', help="Target kernel function. Use comma to separate kernels.")
+    parser.add_argument('-bin',help="the name of the application binary")
+    parser.add_argument('-arg',help="arguments for the application binary")
     parser.add_argument('-r', '--resume', action='store_true',
-        help="Resume the process from genetating the population by reading initedits.json")
+        help="Resume the process from genetating the population by reading startedits.json")
     args = parser.parse_args()
 
     if args.kernel is None:
         print("Please specify the target kernel.",file=sys.stderr)
         parser.print_help()
         exit(1)
+    if args.bin is None:
+        args.bin = 'a.out'
 
     kernel = args.kernel.split(',')
-    evo = evolution(kernel)
+    evo = evolution(kernel=kernel, bin=args.bin, args=args.arg)
 
     try:
         evo.evolve(args.resume)
