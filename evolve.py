@@ -214,7 +214,7 @@ class evolution:
                                  '--unified-memory-profiling', 'off',
                                  '--csv',
                                  '-u', 'us',
-                                 './' + self.appBinary, self.appArgs],
+                                 './' + self.appBinary] + self.appArgs.split(' '),
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
             stdout, stderr = proc.communicate(timeout=30) # second
@@ -254,6 +254,18 @@ class evolution:
                         kernel_time.append(float(line[2]))
 
                 if len(self.kernels) == len(kernel_time):
+                    return sum(kernel_time),
+
+            # kernel not found, remove '(' at end of kernel name and find again
+            kernels = [k[:-1] for k in self.kernels]
+            for line in csv_list[5:]:
+                # 8th column for name of CUDA function call
+                for name in kernels:
+                    if line[7].find(name) == 0:
+                        # 3rd column for avg execution time
+                        kernel_time.append(float(line[2]))
+
+                if len(kernels) == len(kernel_time):
                     return sum(kernel_time),
 
             raise Exception("{} is not a valid kernel function from nvprof".format(self.kernels))
