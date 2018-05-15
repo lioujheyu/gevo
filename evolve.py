@@ -51,15 +51,14 @@ class evolution:
             self.kernels[i] = self.kernels[i] + '('
 
         try:
-            f = open(llvm_src_filename, 'r')
-            self.initSrcEnc = f.read().encode()
-            f.close()
+            with open(llvm_src_filename, 'r') as f:
+                self.initSrcEnc = f.read().encode()
         except IOError:
             print("File {} does not exist".format(llvm_src_filename))
             exit(1)
 
         try:
-            self.compareMethod = json.load(open(compare_filename))
+            self.verifier = json.load(open(compare_filename))
         except IOError:
             print("File {} does not exist".format(compare_filename))
             exit(1)
@@ -70,16 +69,25 @@ class evolution:
         print("  Avg %s" % self.stats['avgFit'][gen])
         print("  Min %s" % self.stats['minFit'][gen])
 
-    def resultCompare(self, stdout_string):
-        if self.compareMethod['source'] == 'stdout':
-            src = stdout_string
+    def writeStage(self):
+        pathlib.Path('stage').mkdir(exist_ok=True)
+        if self.generation == 0:
+            stageFileName = "stage/startedits.json"
         else:
-            src = self.compareMethod['source']
-        golden = self.compareMethod['golden']
+            stageFileName = "stage/" + str(self.generation) + ".json"
 
-        if self.compareMethod['mode'] == 'string':
+        with open(stageFileName, 'w') as fp:
+            count = 0
+            allEdits = [ind.edits for ind in self.pop]
+            json.dump(allEdits, fp, indent=2)
+
+    def resultCompare(self, stdoutStr):
+        src = stdoutStr if self.verifier['source'] == 'stdout' else self.verifier['source']
+        golden = self.verifier['golden']
+
+        if self.verifier['mode'] == 'string':
             return False if src.find(golden) == -1 else True
-        elif self.compareMethod['mode'] == 'file':
+        elif self.verifier['mode'] == 'file':
             try:
                 return filecmp.cmp(src, golden)
             except IOError:
@@ -256,13 +264,11 @@ class evolution:
                 if len(self.kernels) == len(kernel_time):
                     return sum(kernel_time),
 
-            # kernel not found, remove '(' at end of kernel name and find again
+            # kernel not found, remove '(' at the end of kernel name and find again
             kernels = [k[:-1] for k in self.kernels]
             for line in csv_list[5:]:
-                # 8th column for name of CUDA function call
                 for name in kernels:
                     if line[7].find(name) == 0:
-                        # 3rd column for avg execution time
                         kernel_time.append(float(line[2]))
 
                 if len(kernels) == len(kernel_time):
@@ -270,7 +276,7 @@ class evolution:
 
             raise Exception("{} is not a valid kernel function from nvprof".format(self.kernels))
 
-    def evolve(self, resume):
+    def evolve(self, resumeGen):
         history = tools.History()
         toolbox = base.Toolbox()
 
@@ -284,8 +290,8 @@ class evolution:
         toolbox.decorate("mate", history.decorator)
         toolbox.decorate("mutate", history.decorator)
 
-        if resume == False:
-            print("Initialize the population ...")
+        if resumeGen == -1:
+            print("Initialize the population. Size 100")
             self.pop = toolbox.population(n=100)
 
             # Initial 3x mutate to get diverse population
@@ -294,20 +300,22 @@ class evolution:
                 toolbox.mutate(ind)
                 toolbox.mutate(ind)
 
-            pathlib.Path('stage').mkdir(exist_ok=True)
-            with open("stage/startedits.json", 'w') as fp:
-                count = 0
-                allEdits = [ind.edits for ind in self.pop]
-                json.dump(allEdits, fp, indent=2)
+            self.writeStage()
         else:
+            if resumeGen == 0:
+                stageFileName = "stage/startedits.json"
+            else:
+                stageFileName = "stage/" + str(resumeGen) + ".json"
+
             try:
-                allEdits = json.load(open('stage/startedits.json'))
+                allEdits = json.load(open(stageFileName))
             except:
                 print(sys.exc_info())
                 exit(1)
 
-            print("Resume the population from stage/startedits.json ...")
+            print("Resume the population from {}. Size {}".format(stageFileName, len(allEdits)))
             self.pop = toolbox.population(n=len(allEdits))
+            self.generation = resumeGen
             for edits, ind in zip(allEdits, self.pop):
                 editsList = [(e[0], e[1]) for e in edits]
                 ind.edits = editsList
@@ -372,6 +380,7 @@ class evolution:
             self.stats['minFit'].append(min(fits))
             print("")
             self.printGen(self.generation)
+            self.writeStage()
 
         # graph = nx.DiGraph(history.genealogy_tree)
         # graph = graph.reverse()     # Make the graph top-down
@@ -382,22 +391,25 @@ class evolution:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Evolve CUDA kernel function")
-    parser.add_argument('-k', '--kernel', help="Target kernel function. Use comma to separate kernels.")
-    parser.add_argument('-bin',help="the name of the application binary")
-    parser.add_argument('-arg',help="arguments for the application binary")
-    parser.add_argument('-r', '--resume', action='store_true',
-        help="Resume the process from genetating the population by reading startedits.json")
+    parser.add_argument('-k', '--kernel', type=str, required=True,
+        help="Target kernel functionof the given CUDA application. Use comma to separate kernels.")
+    parser.add_argument('-r', '--resume', type=int, default=-1,
+        help="Resume the process from genetating the population by reading stage/<RESUME>.json")
+    parser.add_argument('binary',help="Binary of the CUDA application", nargs='?', default='a.out')
+    parser.add_argument('args',help="arguments for the application binary", nargs='*')
     args = parser.parse_args()
 
-    if args.kernel is None:
-        print("Please specify the target kernel.",file=sys.stderr)
-        parser.print_help()
-        exit(1)
-    if args.bin is None:
-        args.bin = 'a.out'
+    # if args.kernel is None:
+    #     print("Please specify the target kernel.",file=sys.stderr)
+    #     parser.print_help()
+    #     exit(1)
 
     kernel = args.kernel.split(',')
-    evo = evolution(kernel=kernel, bin=args.bin, args=args.arg)
+    evo = evolution(kernel=kernel, bin=args.binary, args=args.args)
+
+    print("      Target CUDA program: {}".format("".join(args.binary)))
+    print("Args for the CUDA program: {}".format("".join(args.args)))
+    print("           Target kernels: {}".format("".join(args.kernel)))
 
     try:
         evo.evolve(args.resume)
