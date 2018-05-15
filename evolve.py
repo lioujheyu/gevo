@@ -222,7 +222,7 @@ class evolution:
                                  '--unified-memory-profiling', 'off',
                                  '--csv',
                                  '-u', 'us',
-                                 './' + self.appBinary] + self.appArgs.split(' '),
+                                 './' + self.appBinary] + self.appArgs,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
             stdout, stderr = proc.communicate(timeout=30) # second
