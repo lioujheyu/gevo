@@ -63,6 +63,18 @@ class evolution:
             print("File {} does not exist".format(compare_filename))
             exit(1)
 
+        # tools initilization
+        self.history = tools.History()
+        self.toolbox = base.Toolbox()
+        self.toolbox.register('mutate', self.mutLLVM)
+        self.toolbox.register('mate', self.cxOnePointLLVM)
+        self.toolbox.register('select', tools.selTournament, tournsize=2)
+        self.toolbox.register('individual', creator.Individual, srcEnc=self.initSrcEnc)
+        self.toolbox.register('population', tools.initRepeat, list, self.toolbox.individual)
+        # Decorate the variation operators
+        self.toolbox.decorate("mate", self.history.decorator)
+        self.toolbox.decorate("mutate", self.history.decorator)
+
     def printGen(self, gen):
         print("-- Generation %s --" % gen)
         print("  Max %s" % self.stats['maxFit'][gen])
@@ -257,6 +269,7 @@ class evolution:
             for line in csv_list[5:]:
                 # 8th column for name of CUDA function call
                 for name in self.kernels:
+                    # if line[7].split('(') == name:
                     if line[7].find(name) == 0:
                         # 3rd column for avg execution time
                         kernel_time.append(float(line[2]))
@@ -277,28 +290,15 @@ class evolution:
             raise Exception("{} is not a valid kernel function from nvprof".format(self.kernels))
 
     def evolve(self, resumeGen):
-        history = tools.History()
-        toolbox = base.Toolbox()
-
-        toolbox.register('mutate', self.mutLLVM)
-        toolbox.register('mate', self.cxOnePointLLVM)
-        toolbox.register('select', tools.selTournament, tournsize=2)
-        toolbox.register('individual', creator.Individual, srcEnc=self.initSrcEnc)
-        toolbox.register('population', tools.initRepeat, list, toolbox.individual)
-
-        # Decorate the variation operators
-        toolbox.decorate("mate", history.decorator)
-        toolbox.decorate("mutate", history.decorator)
-
         if resumeGen == -1:
             print("Initialize the population. Size 100")
-            self.pop = toolbox.population(n=100)
+            self.pop = self.toolbox.population(n=100)
 
             # Initial 3x mutate to get diverse population
             for ind in self.pop:
-                toolbox.mutate(ind)
-                toolbox.mutate(ind)
-                toolbox.mutate(ind)
+                self.toolbox.mutate(ind)
+                self.toolbox.mutate(ind)
+                self.toolbox.mutate(ind)
 
             self.writeStage()
         else:
@@ -314,7 +314,7 @@ class evolution:
                 exit(1)
 
             print("Resume the population from {}. Size {}".format(stageFileName, len(allEdits)))
-            self.pop = toolbox.population(n=len(allEdits))
+            self.pop = self.toolbox.population(n=len(allEdits))
             self.generation = resumeGen
             for edits, ind in zip(allEdits, self.pop):
                 editsList = [(e[0], e[1]) for e in edits]
@@ -324,7 +324,7 @@ class evolution:
                 ind.fitness.values = self.evaluate(ind)
 
         popSize = len(self.pop)
-        history.update(self.pop)
+        self.history.update(self.pop)
 
         fitnesses = [ind.fitness.values for ind in self.pop]
         fits = [ind.fitness.values[0] for ind in self.pop]
@@ -336,12 +336,12 @@ class evolution:
 
         # while generation < 100:
         while True:
-            offspring = toolbox.select(self.pop, popSize)
+            offspring = self.toolbox.select(self.pop, popSize)
             # Preserve individual who has the highest fitness
             elite = tools.selBest(self.pop, 1)
             # Clone the selected individuals
-            offspring = list(map(toolbox.clone, offspring))
-            elite = list(map(toolbox.clone, elite))
+            offspring = list(map(self.toolbox.clone, offspring))
+            elite = list(map(self.toolbox.clone, elite))
             with open("best-{}.ll".format(self.generation), 'w') as f:
                 f.write(elite[0].srcEnc.decode())
             with open("best-{}.edit".format(self.generation), 'w') as f:
@@ -353,7 +353,7 @@ class evolution:
                 if len(child1.edits) < 2 and len(child2.edits) < 2:
                     continue
                 if random.random() < self.CXPB:
-                    toolbox.mate(child1, child2)
+                    self.toolbox.mate(child1, child2)
 
             count = 0
             for mutant in offspring:
@@ -361,7 +361,7 @@ class evolution:
                     count = count + 1
                     print(count, end='', flush=True)
                     del mutant.fitness.values
-                    toolbox.mutate(mutant)
+                    self.toolbox.mutate(mutant)
 
             # Evaluate the individuals with an invalid fitness
             invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
@@ -399,17 +399,12 @@ if __name__ == '__main__':
     parser.add_argument('args',help="arguments for the application binary", nargs='*')
     args = parser.parse_args()
 
-    # if args.kernel is None:
-    #     print("Please specify the target kernel.",file=sys.stderr)
-    #     parser.print_help()
-    #     exit(1)
-
     kernel = args.kernel.split(',')
     evo = evolution(kernel=kernel, bin=args.binary, args=args.args[0].split(' '))
 
-    print("      Target CUDA program: {}".format("".join(args.binary)))
-    print("Args for the CUDA program: {}".format("".join(args.args)))
-    print("           Target kernels: {}".format("".join(args.kernel)))
+    print("      Target CUDA program: {}".format(args.binary))
+    print("Args for the CUDA program: {}".format(" ".join(args.args)))
+    print("           Target kernels: {}".format(" ".join(kernel)))
 
     try:
         evo.evolve(args.resume)
@@ -417,3 +412,4 @@ if __name__ == '__main__':
         print("valid variant:   {}".format(evo.stats['valid']))
         print("invalid variant: {}".format(evo.stats['invalid']))
         print("infinite variant:{}".format(evo.stats['infinite']))
+        subprocess.run(['killall', args.appbinary])
