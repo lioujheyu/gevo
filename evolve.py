@@ -405,7 +405,7 @@ if __name__ == '__main__':
     #     exit(1)
 
     kernel = args.kernel.split(',')
-    evo = evolution(kernel=kernel, bin=args.binary, args=args.args)
+    evo = evolution(kernel=kernel, bin=args.binary, args=args.args[0].split(' '))
 
     print("      Target CUDA program: {}".format("".join(args.binary)))
     print("Args for the CUDA program: {}".format("".join(args.args)))
