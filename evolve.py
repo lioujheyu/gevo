@@ -412,4 +412,4 @@ if __name__ == '__main__':
         print("valid variant:   {}".format(evo.stats['valid']))
         print("invalid variant: {}".format(evo.stats['invalid']))
         print("infinite variant:{}".format(evo.stats['infinite']))
-        subprocess.run(['killall', args.appbinary])
+        subprocess.run(['killall', args.binary])
