@@ -400,7 +400,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     kernel = args.kernel.split(',')
-    evo = evolution(kernel=kernel, bin=args.binary, args=args.args[0].split(' '))
+    evo = evolution(kernel=kernel, bin=args.binary, args=args.args)
 
     print("      Target CUDA program: {}".format(args.binary))
     print("Args for the CUDA program: {}".format(" ".join(args.args)))
