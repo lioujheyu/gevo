@@ -104,6 +104,9 @@ class evolution:
                 return filecmp.cmp(src, golden)
             except IOError:
                 print("File {} or {} cannot be found".format(src, golden))
+        else:
+            raise Exception("Unknown comparing mode \"{}\" from compare.json".format(
+                self.verifier['mode']))
 
     def mutLLVM(self, individual):
         trial = 0
@@ -313,6 +316,9 @@ class evolution:
             print("Resume the population from {}. Size {}".format(stageFileName, len(allEdits)))
             self.pop = self.toolbox.population(n=len(allEdits))
             self.generation = resumeGen
+            self.stats['maxFit'] = [None] * resumeGen
+            self.stats['avgFit'] = [None] * resumeGen
+            self.stats['minFit'] = [None] * resumeGen
             for edits, ind in zip(allEdits, self.pop):
                 editsList = [(e[0], e[1]) for e in edits]
                 ind.edits = editsList
