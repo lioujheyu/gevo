@@ -128,8 +128,7 @@ class evolution:
                                   stderr=subprocess.PIPE,
                                   input=individual.srcEnc)
             if(proc.returncode != 0 or
-               proc.stderr.decode().find('mismatch') != -1 or
-               proc.stderr.decode().find('no use') != -1):
+               proc.stderr.decode().find('mismatch') != -1):
                 continue
 
             test_ind = creator.Individual(proc.stdout)
@@ -299,8 +298,6 @@ class evolution:
                 self.toolbox.mutate(ind)
                 self.toolbox.mutate(ind)
                 self.toolbox.mutate(ind)
-
-            self.writeStage()
         else:
             if resumeGen == 0:
                 stageFileName = "stage/startedits.json"
@@ -336,6 +333,7 @@ class evolution:
 
         # while generation < 100:
         while True:
+            self.writeStage()
             offspring = self.toolbox.select(self.pop, popSize)
             # Preserve individual who has the highest fitness
             elite = tools.selBest(self.pop, 1)
@@ -380,7 +378,6 @@ class evolution:
             self.stats['minFit'].append(min(fits))
             print("")
             self.printGen(self.generation)
-            self.writeStage()
 
         # graph = nx.DiGraph(history.genealogy_tree)
         # graph = graph.reverse()     # Make the graph top-down
