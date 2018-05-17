@@ -47,8 +47,6 @@ class evolution:
         self.kernels = kernel
         self.appBinary = bin
         self.appArgs = "" if args is None else args
-        for i in range(0, len(self.kernels)):
-            self.kernels[i] = self.kernels[i] + '('
 
         try:
             with open(llvm_src_filename, 'r') as f:
@@ -268,25 +266,15 @@ class evolution:
 
             # search for kernel function(s)
             kernel_time = []
+            # The stats starts after 5th line
             for line in csv_list[5:]:
-                # 8th column for name of CUDA function call
                 for name in self.kernels:
-                    # if line[7].split('(') == name:
-                    if line[7].find(name) == 0:
+                    # 8th column for name of CUDA function call
+                    if line[7].split('(')[0] == name:
                         # 3rd column for avg execution time
                         kernel_time.append(float(line[2]))
 
                 if len(self.kernels) == len(kernel_time):
-                    return sum(kernel_time),
-
-            # kernel not found, remove '(' at the end of kernel name and find again
-            kernels = [k[:-1] for k in self.kernels]
-            for line in csv_list[5:]:
-                for name in kernels:
-                    if line[7].find(name) == 0:
-                        kernel_time.append(float(line[2]))
-
-                if len(kernels) == len(kernel_time):
                     return sum(kernel_time),
 
             raise Exception("{} is not a valid kernel function from nvprof".format(self.kernels))
