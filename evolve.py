@@ -24,6 +24,49 @@ import irind
 creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
 creator.create("Individual", irind.llvmIRrep, fitness=creator.FitnessMin)
 
+def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
+    """
+    return returnCode, mutated and encoded source, edit with UID
+    """
+    mut_command = ['llvm-mutate']
+    if op == 'c':
+        mut_command.extend(['-'+op, field1])
+    else:
+        mut_command.extend(['-'+op, field1 + ',' + field2])
+
+    proc = subprocess.run(mut_command,
+                          stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE,
+                          input=srcEncIn)
+    if proc.returncode != 0:
+        return -1, None, None
+    if proc.stderr.decode().find('failed') != -1:
+        return -2, srcEncIn, None
+    if proc.stderr.decode().find('mismatch') != -1:
+        return -3, srcEncIn, None
+
+    mutateSrc = proc.stdout
+    # read the uniqueID of the processed instructions
+    for line in proc.stderr.decode().split('\n'):
+        result = re.search('\w+ (U[0-9.irs]+)(,(U[0-9.irs]+))?', line)
+        if result != None:
+            break
+    if result == None:
+        print(proc.stderr.decode(), file=sys.stderr)
+        with open('error.ll', 'w') as f:
+            f.write(proc.stdout.decode())
+        print(*mut_command)
+        raise Exception("Could not understand the result from llvm-mutate")
+
+    if op == 'c':
+        editUID = ('-'+op, result.group(1))
+    else:
+        editUID = ('-'+op, result.group(1) + ',' + result.group(3))
+
+    if proc.stderr.decode().find('no use') != -1:
+        return 1, mutateSrc, editUID
+    return 0, mutateSrc, editUID
+
 class evolution:
     # Parameters
     log = open('debug_log', 'w')
@@ -118,44 +161,15 @@ class evolution:
                 line2 = random.randint(1, individual.lineSize)
 
             op = random.choice(operations)
-            mut_command = ['llvm-mutate']
-            if op == 'c':
-                mut_command.extend(['-' + op, str(line1)])
-            else:
-                mut_command.extend(['-' + op, str(line1) + ',' + str(line2)])
+            rc, mutateSrc, editUID = llvmMutateWrap(individual.srcEnc, op, str(line1), str(line2))
+            if rc < 0:  continue
 
-            proc = subprocess.run(mut_command,
-                                  stdout=subprocess.PIPE,
-                                  stderr=subprocess.PIPE,
-                                  input=individual.srcEnc)
-            if(proc.returncode != 0 or
-               proc.stderr.decode().find('mismatch') != -1):
-                continue
-
-            test_ind = creator.Individual(proc.stdout)
+            test_ind = creator.Individual(mutateSrc)
             fit = self.evaluate(test_ind)
-            if fit[0] == 0:
-                continue
+            if fit[0] == 0: continue
 
-            # read the uniqueID of the processed instructions
-            for line in proc.stderr.decode().split('\n'):
-                result = re.search('\w+ (U[0-9.irs]+)(,(U[0-9.irs]+))?', line)
-                if result != None:
-                    break
-
-            if result == None:
-                print(proc.stderr.decode(), file=sys.stderr)
-                individual.ptx('error.ptx')
-                print(*mut_command)
-                raise Exception("Could not understand the result from llvm-mutate")
-
-            if op == 'c':
-                inst_UID = ('-'+op, result.group(1))
-            else:
-                inst_UID = ('-'+op, result.group(1) + ',' + result.group(3))
-
-            individual.update(srcEnc=proc.stdout)
-            individual.edits.append(inst_UID)
+            individual.update(srcEnc=mutateSrc)
+            individual.edits.append(editUID)
             individual.fitness.values = fit
             return individual,
 
