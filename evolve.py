@@ -141,36 +141,12 @@ class evolution:
         sharedEdits, diff1, diff2 = irind.diff(ind1.edits, ind2.edits)
         if len(diff1) < 2 and len(diff2) < 2:
             print("d1:{}, d2:{} meaningless crossover".format(len(diff1), len(diff2)), file=self.log)
+            return ind1, ind2
         shuffleEdits = diff1 + diff2
         random.shuffle(shuffleEdits)
         point = random.randint(1, len(shuffleEdits)-1)
         cmd1 = shuffleEdits[:point] + sharedEdits
         cmd2 = shuffleEdits[point:] + sharedEdits
-
-        # # check whether they have the same starting edits(accessor)
-        # start_point = 0
-        # for edit1, edit2 in zip(ind1.edits, ind2.edits):
-        #     if edit1 == edit2:
-        #         start_point = start_point + 1
-        #     else:
-        #         break
-        # if (len(ind1.edits)-1) <= start_point and (len(ind2.edits)-1) <= start_point:
-        #     print("s:{}, i:{}, i:{}. meaningless crossover".format(start_point, len(ind1.edits)-1, len(ind2.edits)-1),
-        #           file=self.log)
-        #     # Exist no meaningful crossover
-        #     return ind1, ind2
-
-        # point1 = start_point
-        # point2 = start_point
-        # while point1 == start_point and point2 == start_point:
-        #     if len(ind1.edits) > start_point:
-        #         point1 = random.randint(start_point, len(ind1.edits)-1)
-        #     if len(ind2.edits) > start_point:
-        #         point2 = random.randint(start_point, len(ind2.edits)-1)
-
-        # cmd1 = ind1.edits[:point1] + ind2.edits[point2:]
-        # cmd2 = ind2.edits[:point2] + ind1.edits[point1:]
-
         cmd1 = irind.rearrage(cmd1)
         cmd2 = irind.rearrage(cmd2)
 
