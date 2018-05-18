@@ -2,6 +2,50 @@
 
 import subprocess
 import sys
+import re
+
+def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
+    """
+    return returnCode, mutated and encoded source, edit with UID
+    """
+    mut_command = ['llvm-mutate']
+    if op == 'c':
+        mut_command.extend(['-'+op, field1])
+    else:
+        mut_command.extend(['-'+op, field1 + ',' + field2])
+
+    proc = subprocess.run(mut_command,
+                          stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE,
+                          input=srcEncIn)
+    if proc.returncode != 0:
+        return -1, None, None
+    if proc.stderr.decode().find('failed') != -1:
+        return -2, srcEncIn, None
+    if proc.stderr.decode().find('mismatch') != -1:
+        return -3, srcEncIn, None
+
+    mutateSrc = proc.stdout
+    # read the uniqueID of the processed instructions
+    for line in proc.stderr.decode().split('\n'):
+        result = re.search('\w+ (U[0-9.irs]+)(,(U[0-9.irs]+))?', line)
+        if result != None:
+            break
+    if result == None:
+        print(proc.stderr.decode(), file=sys.stderr)
+        with open('error.ll', 'w') as f:
+            f.write(proc.stdout.decode())
+        print(*mut_command)
+        raise Exception("Could not understand the result from llvm-mutate")
+
+    if op == 'c':
+        editUID = ('-'+op, result.group(1))
+    else:
+        editUID = ('-'+op, result.group(1) + ',' + result.group(3))
+
+    if proc.stderr.decode().find('no use') != -1:
+        return 1, mutateSrc, editUID
+    return 0, mutateSrc, editUID
 
 def rearrage(cmd):
     # this set approach reduces the duplicate edits in the list
@@ -64,7 +108,7 @@ class llvmIRrep:
         return True
 
     def rearrage(self):
-        self.edits[:] = list(set(self.edits))
+        self.edits = list(set(self.edits))
         c_cmd = [c for c in self.edits if c[0] == '-c']
         r_cmd = [c for c in self.edits if c[0] == '-r']
         i_cmd = [c for c in self.edits if c[0] == '-i']
