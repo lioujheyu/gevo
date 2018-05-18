@@ -3,6 +3,7 @@
 import subprocess
 import sys
 import re
+from collections import Counter
 
 def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
     """
@@ -48,9 +49,10 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
     return 0, mutateSrc, editUID
 
 def rearrage(cmd):
-    # this set approach reduces the duplicate edits in the list
-    cmdlist = list(set(cmd))
+    # # this set approach reduces the duplicate edits in the list
+    # cmdlist = list(set(cmd))
     # rearrage the edit sequence to reduce the fail chance of edit
+    cmdlist = list(cmd)
     c_cmd = [c for c in cmdlist if c[0] == '-c']
     r_cmd = [c for c in cmdlist if c[0] == '-r']
     i_cmd = [c for c in cmdlist if c[0] == '-i']
@@ -60,10 +62,16 @@ def rearrage(cmd):
     return cmdlist
 
 def diff(edits1, edits2):
-    sharedEdits = set(edits1).intersection(edits2)
-    diff1 = set(edits1) - sharedEdits
-    diff2 = set(edits2) - sharedEdits
-    return list(sharedEdits), list(diff1), list(diff2)
+    # sharedEdits = set(edits1).intersection(edits2)
+    # diff1 = set(edits1) - sharedEdits
+    # diff2 = set(edits2) - sharedEdits
+    # return list(sharedEdits), list(diff1), list(diff2)
+    c1 = Counter(edits1)
+    c2 = Counter(edits2)
+    diff1 = c1 - c2
+    diff2 = c2 - c1
+    sharedEdits = c1 - diff1
+    return list(sharedEdits.elements()), list(diff1.elements()), list(diff2.elements())
 
 class llvmIRrep:
     edits = []
@@ -108,7 +116,7 @@ class llvmIRrep:
         return True
 
     def rearrage(self):
-        self.edits = list(set(self.edits))
+        # self.edits = list(set(self.edits))
         c_cmd = [c for c in self.edits if c[0] == '-c']
         r_cmd = [c for c in self.edits if c[0] == '-r']
         i_cmd = [c for c in self.edits if c[0] == '-i']
