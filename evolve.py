@@ -38,7 +38,7 @@ class evolution:
         'maxFit':[], 'avgFit':[], 'minFit':[]
     }
 
-    def __init__(self, kernel, bin, args="",
+    def __init__(self, kernel, bin, args="", timeout=30,
                  llvm_src_filename='cuda-device-only-kernel.ll',
                  compare_filename="compare.json",
                  CXPB=0.8, MUPB=0.1):
@@ -47,6 +47,7 @@ class evolution:
         self.kernels = kernel
         self.appBinary = bin
         self.appArgs = "" if args is None else args
+        self.timeout = timeout
 
         try:
             with open(llvm_src_filename, 'r') as f:
@@ -98,10 +99,13 @@ class evolution:
         if self.verifier['mode'] == 'string':
             return False if src.find(golden) == -1 else True
         elif self.verifier['mode'] == 'file':
-            try:
-                return filecmp.cmp(src, golden)
-            except IOError:
-                print("File {} or {} cannot be found".format(src, golden))
+            result = True
+            for s, g in zip(src, golden):
+                try:
+                    result = result & filecmp.cmp(s, g)
+                except IOError:
+                    print("File {} or {} cannot be found".format(src, golden))
+            return result
         else:
             raise Exception("Unknown comparing mode \"{}\" from compare.json".format(
                 self.verifier['mode']))
@@ -197,7 +201,7 @@ class evolution:
                                  './' + self.appBinary] + self.appArgs,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
-            stdout, stderr = proc.communicate(timeout=30) # second
+            stdout, stderr = proc.communicate(timeout=self.timeout) # second
             retcode = proc.poll()
             # retcode == 9: error is from testing program, not nvprof
             if retcode != 9 and retcode != 0:
@@ -346,16 +350,19 @@ if __name__ == '__main__':
         help="Target kernel functionof the given CUDA application. Use comma to separate kernels.")
     parser.add_argument('-r', '--resume', type=int, default=-1,
         help="Resume the process from genetating the population by reading stage/<RESUME>.json")
+    parser.add_argument('-t', '--timeout', type=int, default=30,
+        help="The timeout period to evaluate the CUDA application")
     parser.add_argument('binary',help="Binary of the CUDA application", nargs='?', default='a.out')
     parser.add_argument('args',help="arguments for the application binary", nargs='*')
     args = parser.parse_args()
 
     kernel = args.kernel.split(',')
-    evo = evolution(kernel=kernel, bin=args.binary, args=args.args)
+    evo = evolution(kernel=kernel, bin=args.binary, args=args.args, timeout=args.timeout)
 
     print("      Target CUDA program: {}".format(args.binary))
     print("Args for the CUDA program: {}".format(" ".join(args.args)))
     print("           Target kernels: {}".format(" ".join(kernel)))
+    print("       Evaluation Timeout: {}".format(args.timeout))
 
     try:
         evo.evolve(args.resume)
