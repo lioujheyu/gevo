@@ -234,9 +234,13 @@ class evolution:
             for line in csv_list[5:]:
                 for name in self.kernels:
                     # 8th column for name of CUDA function call
-                    if line[7].split('(')[0] == name:
-                        # 3rd column for avg execution time
-                        kernel_time.append(float(line[2]))
+                    try:
+                        if line[7].split('(')[0] == name:
+                            # 3rd column for avg execution time
+                            kernel_time.append(float(line[2]))
+                    except:
+                        print(stderr.decode(), file=sys.stderr)
+                        exit()
 
                 if len(self.kernels) == len(kernel_time):
                     return sum(kernel_time),
@@ -276,7 +280,10 @@ class evolution:
                 ind.edits = editsList
                 if ind.update_from_edits() == False:
                     raise Exception("Could not reconstruct ind from edits:{}".format(editsList))
-                ind.fitness.values = self.evaluate(ind)
+                fitness = self.evaluate(ind)
+                if fitness[0] == 0:
+                    raise Exception("Encounter invalid individual during reconstruction")
+                ind.fitness.values = fitness
 
         popSize = len(self.pop)
         self.history.update(self.pop)
