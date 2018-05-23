@@ -123,15 +123,18 @@ class evolution:
 
             op = random.choice(operations)
             rc, mutateSrc, editUID = llvmMutateWrap(individual.srcEnc, op, str(line1), str(line2))
-            if rc < 0:  continue
+            if rc < 0:
+                continue
 
             test_ind = creator.Individual(mutateSrc)
             test_ind.edits[:] = individual.edits + [editUID]
             test_ind.rearrage()
-            test_ind.update_from_edits()
+            if test_ind.update_from_edits() == False:
+                continue
 
             fit = self.evaluate(test_ind)
-            if fit[0] == 0: continue
+            if fit[0] == 0:
+                continue
 
             individual.update(srcEnc=mutateSrc)
             individual.edits.append(editUID)
