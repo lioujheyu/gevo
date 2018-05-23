@@ -142,15 +142,16 @@ class evolution:
         return individual,
 
     def cxOnePointLLVM(self, ind1, ind2):
-        sharedEdits, diff1, diff2 = irind.diff(ind1.edits, ind2.edits)
-        if len(diff1) < 2 and len(diff2) < 2:
-            print("d1:{}, d2:{} meaningless crossover".format(len(diff1), len(diff2)), file=self.log)
-            return ind1, ind2
-        shuffleEdits = diff1 + diff2
+        # sharedEdits, diff1, diff2 = irind.diff(ind1.edits, ind2.edits)
+        # if len(diff1) < 2 and len(diff2) < 2:
+        #     print("d1:{}, d2:{} meaningless crossover".format(len(diff1), len(diff2)), file=self.log)
+        #     return ind1, ind2
+        # shuffleEdits = diff1 + diff2
+        shuffleEdits = ind1.edits + ind2.edits
         random.shuffle(shuffleEdits)
         point = random.randint(1, len(shuffleEdits)-1)
-        cmd1 = shuffleEdits[:point] + sharedEdits
-        cmd2 = shuffleEdits[point:] + sharedEdits
+        cmd1 = shuffleEdits[:point]
+        cmd2 = shuffleEdits[point:]
         cmd1 = irind.rearrage(cmd1)
         cmd2 = irind.rearrage(cmd2)
 
