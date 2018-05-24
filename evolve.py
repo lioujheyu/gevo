@@ -126,7 +126,7 @@ class evolution:
             if rc < 0:
                 continue
 
-            test_ind = creator.Individual(mutateSrc)
+            test_ind = creator.Individual(self.initSrcEnc)
             test_ind.edits[:] = individual.edits + [editUID]
             test_ind.rearrage()
             if test_ind.update_from_edits() == False:
@@ -136,8 +136,9 @@ class evolution:
             if fit[0] == 0:
                 continue
 
-            individual.update(srcEnc=mutateSrc)
+            individual.update(srcEnc=test_ind.srcEnc)
             individual.edits.append(editUID)
+            individual.rearrage()
             individual.fitness.values = fit
             return individual,
 
