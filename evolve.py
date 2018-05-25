@@ -244,8 +244,7 @@ class evolution:
                             # 3rd column for avg execution time
                             kernel_time.append(float(line[2]))
                     except:
-                        print(stderr.decode(), file=sys.stderr)
-                        exit()
+                        continue
 
                 if len(self.kernels) == len(kernel_time):
                     return sum(kernel_time),
