@@ -109,7 +109,7 @@ class llvmIRrep:
                               stderr=subprocess.PIPE,
                               input=self.srcEnc)
         if proc.returncode != 0:
-            print(proc.stderr.decode())
+            # print(proc.stderr.decode())
             return False
 
         self.update(proc.stdout)
