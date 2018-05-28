@@ -255,7 +255,7 @@ class evolution:
                 if len(self.kernels) == len(kernel_time):
                     return sum(kernel_time),
 
-            print("Can not find kernel \"{}\" from nvprof".format(self.kernels), file=stderr)
+            print("Can not find kernel \"{}\" from nvprof".format(self.kernels), file=sys.stderr)
             return 0,
 
     def evolve(self, resumeGen):
