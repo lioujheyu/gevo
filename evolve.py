@@ -209,14 +209,20 @@ class evolution:
             stdout, stderr = proc.communicate(timeout=self.timeout) # second
             retcode = proc.poll()
             # retcode == 9: error is from testing program, not nvprof
-            if retcode != 9 and retcode != 0:
+            # retcode == 15: Target program receive segmentation fault
+            if retcode == 9 or retcode == 15:
+                return 0,
+            # Unknown nvprof error
+            if retcode != 0:
                 print(stderr.decode(), file=sys.stderr)
                 raise Exception('nvprof error')
         except subprocess.TimeoutExpired:
             # Sometimes terminating nvprof will not terminate the underlying cuda program
             # if that program is corrupted. So issue the kill command to those cuda app first
             print('8', end='', flush=True)
-            subprocess.run(['killall', self.appBinary])
+            subprocess.run(['killall', self.appBinary],
+                           stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE)
             proc.kill()
             proc.wait()
             self.stats['infinite'] = self.stats['infinite'] + 1
