@@ -146,11 +146,6 @@ class evolution:
         return individual,
 
     def cxOnePointLLVM(self, ind1, ind2):
-        # sharedEdits, diff1, diff2 = irind.diff(ind1.edits, ind2.edits)
-        # if len(diff1) < 2 and len(diff2) < 2:
-        #     print("d1:{}, d2:{} meaningless crossover".format(len(diff1), len(diff2)), file=self.log)
-        #     return ind1, ind2
-        # shuffleEdits = diff1 + diff2
         shuffleEdits = ind1.edits + ind2.edits
         random.shuffle(shuffleEdits)
         point = random.randint(1, len(shuffleEdits)-1)
@@ -159,35 +154,19 @@ class evolution:
         cmd1 = irind.rearrage(cmd1)
         cmd2 = irind.rearrage(cmd2)
 
-        proc1 = subprocess.run(['llvm-mutate'] + [i for j in cmd1 for i in j],
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE,
-                               input=self.initSrcEnc)
-        child1 = creator.Individual(proc1.stdout)
-        print(cmd1, file=self.log, flush=True)
-        print(proc1.stderr.decode(), file=self.log, flush=True)
-        fit1 = [0]
-        if proc1.returncode == 0:
-            fit1 = self.evaluate(child1)
+        child1 = creator.Individual(self.initSrcEnc)
+        child1.edits = list(cmd1)
+        child1.update_from_edits(sweepEdits=True)
+        fit1 = self.evaluate(child1)
         if fit1[0] != 0:
-            ind1.update(proc1.stdout)
-            ind1.edits = cmd1
-            ind1.fitness.values = fit1
+            ind1 = child1
 
-        proc2 = subprocess.run(['llvm-mutate'] + [i for j in cmd2 for i in j],
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE,
-                               input=self.initSrcEnc)
-        child2 = creator.Individual(proc2.stdout)
-        print(cmd2, file=self.log, flush=True)
-        print(proc2.stderr.decode(), file=self.log, flush=True)
-        fit2 = [0]
-        if proc2.returncode == 0:
-            fit2 = self.evaluate(child2)
-        if fit2[0] != 0:
-            ind2.update(proc2.stdout)
-            ind2.edits = cmd2
-            ind2.fitness.values = fit2
+        child2 = creator.Individual(self.initSrcEnc)
+        child2.edits = list(cmd2)
+        child2.update_from_edits(sweepEdits=True)
+        fit2 = self.evaluate(child2)
+        if fit1[0] != 0:
+            ind2 = child2
 
         print('c', end='', flush=True)
         return ind1, ind2
@@ -289,7 +268,7 @@ class evolution:
             for edits, ind in zip(allEdits, self.pop):
                 editsList = [(e[0], e[1]) for e in edits]
                 ind.edits = editsList
-                if ind.update_from_edits() == False:
+                if ind.update_from_edits(sweepEdits=True) == False:
                     raise Exception("Could not reconstruct ind from edits:{}".format(editsList))
                 fitness = self.evaluate(ind)
                 if fitness[0] == 0:

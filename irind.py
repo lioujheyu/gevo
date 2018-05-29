@@ -20,7 +20,7 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
                           stderr=subprocess.PIPE,
                           input=srcEncIn)
     if proc.returncode != 0:
-        return -1, None, None
+        return -1, srcEncIn, None
     if proc.stderr.decode().find('failed') != -1:
         return -2, srcEncIn, None
     if proc.stderr.decode().find('mismatch') != -1:
@@ -49,9 +49,6 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
     return 0, mutateSrc, editUID
 
 def rearrage(cmd):
-    # # this set approach reduces the duplicate edits in the list
-    # cmdlist = list(set(cmd))
-    # rearrage the edit sequence to reduce the fail chance of edit
     cmdlist = list(cmd)
     c_cmd = [c for c in cmdlist if c[0] == '-c']
     r_cmd = [c for c in cmdlist if c[0] == '-r']
@@ -62,10 +59,6 @@ def rearrage(cmd):
     return cmdlist
 
 def diff(edits1, edits2):
-    # sharedEdits = set(edits1).intersection(edits2)
-    # diff1 = set(edits1) - sharedEdits
-    # diff2 = set(edits2) - sharedEdits
-    # return list(sharedEdits), list(diff1), list(diff2)
     c1 = Counter(edits1)
     c2 = Counter(edits2)
     diff1 = c1 - c2
@@ -92,7 +85,7 @@ class llvmIRrep:
                                            stdout=subprocess.PIPE,
                                            stderr=subprocess.PIPE,
                                            input=self.srcEnc,
-                                           check=True )
+                                           check=True)
         except subprocess.CalledProcessError as err:
             print(err.stderr, file=sys.stderr)
             raise Exception('llvm-mutate error in calculating line size')
@@ -103,20 +96,34 @@ class llvmIRrep:
         self.srcEnc = srcEnc
         self.update_linesize()
 
-    def update_from_edits(self):
-        proc = subprocess.run(['llvm-mutate'] + [arg for edit in self.edits for arg in edit],
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE,
-                              input=self.srcEnc)
-        if proc.returncode != 0:
-            # print(proc.stderr.decode())
-            return False
+    def update_from_edits(self, sweepEdits=False):
+        if sweepEdits == False:
+            proc = subprocess.run(['llvm-mutate'] + [arg for edit in self.edits for arg in edit],
+                                  stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE,
+                                  input=self.srcEnc)
+            if proc.returncode != 0:
+                return False
+            mutateSrcEn = proc.stdout
+        else:
+            validEdits = []
+            mutateSrcEn = self.srcEnc
+            for edit in self.edits:
+                rc, mutateSrcEn, _ = llvmMutateWrap(
+                                        mutateSrcEn,
+                                        edit[0][1],
+                                        edit[1].split(',')[0],
+                                        edit[1].split(',')[1] if ',' in edit[1] else None)
+                if rc < 0:
+                    continue
+                validEdits.append(edit)
 
-        self.update(proc.stdout)
+            self.edits = validEdits
+
+        self.update(mutateSrcEn)
         return True
 
     def rearrage(self):
-        # self.edits = list(set(self.edits))
         c_cmd = [c for c in self.edits if c[0] == '-c']
         r_cmd = [c for c in self.edits if c[0] == '-r']
         i_cmd = [c for c in self.edits if c[0] == '-i']
