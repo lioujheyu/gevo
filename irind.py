@@ -49,9 +49,6 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
     return 0, mutateSrc, editUID
 
 def rearrage(cmd):
-    # # this set approach reduces the duplicate edits in the list
-    # cmdlist = list(set(cmd))
-    # rearrage the edit sequence to reduce the fail chance of edit
     cmdlist = list(cmd)
     c_cmd = [c for c in cmdlist if c[0] == '-c']
     r_cmd = [c for c in cmdlist if c[0] == '-r']
@@ -62,16 +59,25 @@ def rearrage(cmd):
     return cmdlist
 
 def diff(edits1, edits2):
-    # sharedEdits = set(edits1).intersection(edits2)
-    # diff1 = set(edits1) - sharedEdits
-    # diff2 = set(edits2) - sharedEdits
-    # return list(sharedEdits), list(diff1), list(diff2)
     c1 = Counter(edits1)
     c2 = Counter(edits2)
     diff1 = c1 - c2
     diff2 = c2 - c1
     sharedEdits = c1 - diff1
     return list(sharedEdits.elements()), list(diff1.elements()), list(diff2.elements())
+
+def update_from_edits(idx, ind, resultList):
+    proc = subprocess.run(
+        ['llvm-mutate'] + [arg for edit in ind.edits for arg in edit],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        input=ind.srcEnc
+    )
+    if proc.returncode != 0:
+        resultList[idx] = False
+
+    ind.update(proc.stdout)
+    resultList[idx] = True
 
 class llvmIRrep:
     edits = []

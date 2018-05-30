@@ -9,6 +9,7 @@ import pathlib
 import sys
 import filecmp
 from io import StringIO
+from threading import Thread
 
 # import matplotlib.pyplot as plt
 # import networkx as nx
@@ -19,6 +20,7 @@ from deap import tools
 sys.path.append('/home/jliou4/genetic-programming/cuda_evolve')
 import irind
 from irind import llvmMutateWrap
+from irind import update_from_edits
 
 # Run shorter is better
 creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
@@ -286,11 +288,21 @@ class evolution:
             self.stats['maxFit'] = [None] * resumeGen
             self.stats['avgFit'] = [None] * resumeGen
             self.stats['minFit'] = [None] * resumeGen
-            for edits, ind in zip(allEdits, self.pop):
+
+            resultList = [False] * len(allEdits)
+            threadPool = []
+            for i, (edits, ind) in enumerate(zip(allEdits, self.pop)):
                 editsList = [(e[0], e[1]) for e in edits]
                 ind.edits = editsList
-                if ind.update_from_edits() == False:
-                    raise Exception("Could not reconstruct ind from edits:{}".format(editsList))
+                threadPool.append(
+                    Thread(target=update_from_edits, args=(i, ind, resultList))
+                )
+                threadPool[-1].start()
+
+            for i, ind in enumerate(self.pop):
+                threadPool[i].join()
+                if resultList[i] == False:
+                    raise Exception("Could not reconstruct ind from edits:{}".format(ind.edits))
                 fitness = self.evaluate(ind)
                 if fitness[0] == 0:
                     raise Exception("Encounter invalid individual during reconstruction")
