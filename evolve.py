@@ -10,6 +10,7 @@ import sys
 import filecmp
 from io import StringIO
 from threading import Thread
+from threading import Lock
 
 # import matplotlib.pyplot as plt
 # import networkx as nx
@@ -25,6 +26,9 @@ from irind import update_from_edits
 # Run shorter is better
 creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
 creator.create("Individual", irind.llvmIRrep, fitness=creator.FitnessMin)
+
+# critical section of multithreading
+lock = Lock()
 
 class evolution:
     # Parameters
@@ -159,14 +163,16 @@ class evolution:
         child1 = creator.Individual(self.initSrcEnc)
         child1.edits = list(cmd1)
         child1.update_from_edits(sweepEdits=False)
-        fit1 = self.evaluate(child1)
+        with lock:
+            fit1 = self.evaluate(child1)
         if fit1[0] != 0:
             ind1 = child1
 
         child2 = creator.Individual(self.initSrcEnc)
         child2.edits = list(cmd2)
         child2.update_from_edits(sweepEdits=False)
-        fit2 = self.evaluate(child2)
+        with lock:
+            fit2 = self.evaluate(child2)
         if fit1[0] != 0:
             ind2 = child2
 
@@ -300,6 +306,7 @@ class evolution:
 
         # while generation < 100:
         while True:
+            threadPool.clear()
             self.writeStage()
             offspring = self.toolbox.select(self.pop, popSize)
             # Preserve individual who has the highest fitness
@@ -314,11 +321,19 @@ class evolution:
 
             self.generation = self.generation + 1
 
+
             for child1, child2 in zip(offspring[::2], offspring[1::2]):
                 if len(child1.edits) < 2 and len(child2.edits) < 2:
                     continue
                 if random.random() < self.CXPB:
-                    self.toolbox.mate(child1, child2)
+                    threadPool.append(
+                        Thread(target=self.toolbox.mate, args=(child1, child2))
+                    )
+                    threadPool[-1].start()
+                    # self.toolbox.mate(child1, child2)
+
+            for thread in threadPool:
+                thread.join()
 
             count = 0
             for mutant in offspring:
