@@ -163,20 +163,20 @@ class evolution:
         child1 = creator.Individual(self.initSrcEnc)
         child1.edits = list(cmd1)
         child1.update_from_edits(sweepEdits=False)
-        with lock:
-            fit1 = self.evaluate(child1)
-        if fit1[0] != 0:
-            ind1 = child1
-
         child2 = creator.Individual(self.initSrcEnc)
         child2.edits = list(cmd2)
         child2.update_from_edits(sweepEdits=False)
+
         with lock:
+            fit1 = self.evaluate(child1)
             fit2 = self.evaluate(child2)
+            print('c', end='', flush=True)
+
+        if fit1[0] != 0:
+            ind1 = child1
         if fit1[0] != 0:
             ind2 = child2
 
-        print('c', end='', flush=True)
         return ind1, ind2
 
     def evaluate(self, individual):
@@ -255,6 +255,7 @@ class evolution:
                 self.toolbox.mutate(ind)
                 self.toolbox.mutate(ind)
                 self.toolbox.mutate(ind)
+            self.writeStage()
         else:
             if resumeGen == 0:
                 stageFileName = "stage/startedits.json"
@@ -296,18 +297,15 @@ class evolution:
 
         self.history.update(self.pop)
 
-        fitnesses = [ind.fitness.values for ind in self.pop]
         fits = [ind.fitness.values[0] for ind in self.pop]
-
         self.stats['maxFit'].append(max(fits))
         self.stats['avgFit'].append((sum(fits)/len(fits)))
         self.stats['minFit'].append(min(fits))
         self.printGen(self.generation)
 
-        # while generation < 100:
+        # while self.generation < 100:
         while True:
             threadPool.clear()
-            self.writeStage()
             offspring = self.toolbox.select(self.pop, popSize)
             # Preserve individual who has the highest fitness
             elite = tools.selBest(self.pop, 1)
@@ -321,16 +319,13 @@ class evolution:
 
             self.generation = self.generation + 1
 
-
             for child1, child2 in zip(offspring[::2], offspring[1::2]):
                 if len(child1.edits) < 2 and len(child2.edits) < 2:
                     continue
                 if random.random() < self.CXPB:
                     threadPool.append(
-                        Thread(target=self.toolbox.mate, args=(child1, child2))
-                    )
+                        Thread(target=self.toolbox.mate, args=(child1, child2)))
                     threadPool[-1].start()
-                    # self.toolbox.mate(child1, child2)
 
             for thread in threadPool:
                 thread.join()
@@ -349,8 +344,9 @@ class evolution:
             for ind, fit in zip(invalid_ind, fitnesses):
                 ind.fitness.values = fit
 
-            self.pop[:] = offspring + elite
-            # self.pop[:] = offspring
+            self.pop[:] = offspring
+            self.writeStage()
+            self.pop.extend(elite)
 
             # Gather all the fitnesses in one list and print the stats
             fits = [ind.fitness.values[0] for ind in self.pop]
