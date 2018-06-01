@@ -379,7 +379,7 @@ if __name__ == '__main__':
     parser.add_argument('-t', '--timeout', type=int, default=30,
         help="The timeout period to evaluate the CUDA application")
     parser.add_argument('binary',help="Binary of the CUDA application", nargs='?', default='a.out')
-    parser.add_argument('args',help="arguments for the application binary", nargs='*')
+    parser.add_argument('args',help="arguments for the application binary", nargs=argparse.REMAINDER)
     args = parser.parse_args()
 
     kernel = args.kernel.split(',')
