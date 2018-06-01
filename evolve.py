@@ -138,7 +138,9 @@ class evolution:
             if test_ind.update_from_edits() == False:
                 continue
 
-            fit = self.evaluate(test_ind)
+            with lock:
+                fit = self.evaluate(test_ind)
+                print('m', end='', flush=True)
             if fit[0] == 0:
                 continue
 
@@ -292,6 +294,8 @@ class evolution:
                     raise Exception("Could not reconstruct ind from edits:{}".format(ind.edits))
                 fitness = self.evaluate(ind)
                 if fitness[0] == 0:
+                    for edit in ind.edits:
+                        print(edit)
                     raise Exception("Encounter invalid individual during reconstruction")
                 ind.fitness.values = fitness
 
@@ -305,7 +309,6 @@ class evolution:
 
         # while self.generation < 100:
         while True:
-            threadPool.clear()
             offspring = self.toolbox.select(self.pop, popSize)
             # Preserve individual who has the highest fitness
             elite = tools.selBest(self.pop, 1)
@@ -319,6 +322,7 @@ class evolution:
 
             self.generation = self.generation + 1
 
+            threadPool.clear()
             for child1, child2 in zip(offspring[::2], offspring[1::2]):
                 if len(child1.edits) < 2 and len(child2.edits) < 2:
                     continue
@@ -326,17 +330,19 @@ class evolution:
                     threadPool.append(
                         Thread(target=self.toolbox.mate, args=(child1, child2)))
                     threadPool[-1].start()
-
             for thread in threadPool:
                 thread.join()
 
-            count = 0
+            threadPool.clear()
             for mutant in offspring:
                 if random.random() < self.MUPB:
-                    count = count + 1
-                    print(count, end='', flush=True)
                     del mutant.fitness.values
-                    self.toolbox.mutate(mutant)
+                    threadPool.append(
+                        Thread(target=self.toolbox.mutate, args=(mutant)))
+                    threadPool[-1].start()
+            for thread in threadPool:
+                thread.join()
+
 
             # Evaluate the individuals with an invalid fitness
             invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
@@ -367,7 +373,7 @@ class evolution:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Evolve CUDA kernel function")
     parser.add_argument('-k', '--kernel', type=str, required=True,
-        help="Target kernel functionof the given CUDA application. Use comma to separate kernels.")
+        help="Target kernel function of the given CUDA application. Use comma to separate kernels.")
     parser.add_argument('-r', '--resume', type=int, default=-1,
         help="Resume the process from genetating the population by reading stage/<RESUME>.json")
     parser.add_argument('-t', '--timeout', type=int, default=30,
