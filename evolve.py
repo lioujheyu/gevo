@@ -248,9 +248,11 @@ class evolution:
             return 0,
 
     def evolve(self, resumeGen):
+        threadPool = []
         if resumeGen == -1:
             print("Initialize the population. Size 100")
-            self.pop = self.toolbox.population(n=100)
+            popSize = 100
+            self.pop = self.toolbox.population(n=popSize)
 
             # Initial 3x mutate to get diverse population
             for ind in self.pop:
@@ -279,7 +281,6 @@ class evolution:
             self.stats['minFit'] = [None] * resumeGen
 
             resultList = [False] * popSize
-            threadPool = []
             for i, (edits, ind) in enumerate(zip(allEdits, self.pop)):
                 editsList = [(e[0], e[1]) for e in edits]
                 ind.edits = editsList
@@ -338,7 +339,7 @@ class evolution:
                 if random.random() < self.MUPB:
                     del mutant.fitness.values
                     threadPool.append(
-                        Thread(target=self.toolbox.mutate, args=(mutant)))
+                        Thread(target=self.toolbox.mutate, args=(mutant,)))
                     threadPool[-1].start()
             for thread in threadPool:
                 thread.join()
