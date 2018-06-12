@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
         }
 
         // Main part for comparison by determining the esplon
-        float esplon = gfloat * 0.01;
+        float esplon = fabs(gfloat * 0.01);
         if (fabs(sfloat - gfloat) > esplon) {
             cout << "s: " << sfloat << " <<>> g: " << gfloat << endl;
             exit(1);
