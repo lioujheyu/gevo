@@ -136,12 +136,17 @@ class program:
         fitness = [None] * len(self.edits)
         for ind,edit,fits in zip(self.pop, self.edits, fitness):
             ind.edits = [edit]
-            ind.update_from_edits()
-            print("Evalute edit: {}".format(edit), end='')
+            print("Evalute edit: {}".format(edit), end='', flush=True)
+            if ind.update_from_edits() == False:
+                print(": cannot compile")
+                continue
             fits = [self.evaluate(ind)[0] for i in range(3)]
             fit = float(sum(fits)) / len(fits)
-            improvement = baseFit/fit
-            print(": {}. Improvement: {}".format(fit, improvement))
+            if fit == 0:
+                print(": execution failed")
+            else:
+                improvement = baseFit/fit
+                print(": {}. Improvement: {}".format(fit, improvement))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Analyze the performance of mutation edits for CUDA kernel")
