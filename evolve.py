@@ -123,7 +123,7 @@ class evolution:
     def mutLLVM(self, individual):
         trial = 0
         # cut, replace, insert, swap
-        operations = ['c', 'r', 'i', 's']
+        operations = ['c', 'r', 'i', 's', 'm']
         while trial < individual.lineSize:
             trial = trial + 1
             line1 = random.randint(1, individual.lineSize)

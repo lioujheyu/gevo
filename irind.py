@@ -53,9 +53,10 @@ def rearrage(cmd):
     c_cmd = [c for c in cmdlist if c[0] == '-c']
     r_cmd = [c for c in cmdlist if c[0] == '-r']
     i_cmd = [c for c in cmdlist if c[0] == '-i']
+    m_cmd = [c for c in cmdlist if c[0] == '-m']
     s_cmd = [c for c in cmdlist if c[0] == '-s']
 
-    cmdlist = s_cmd + i_cmd + r_cmd + c_cmd
+    cmdlist = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd
     return cmdlist
 
 def diff(edits1, edits2):
@@ -140,9 +141,10 @@ class llvmIRrep:
         c_cmd = [c for c in self.edits if c[0] == '-c']
         r_cmd = [c for c in self.edits if c[0] == '-r']
         i_cmd = [c for c in self.edits if c[0] == '-i']
+        m_cmd = [c for c in self.edits if c[0] == '-m']
         s_cmd = [c for c in self.edits if c[0] == '-s']
 
-        self.edits = s_cmd + i_cmd + r_cmd + c_cmd
+        self.edits = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd
 
     def ptx(self, outf):
         proc = subprocess.run(['llc', '-o', outf],
