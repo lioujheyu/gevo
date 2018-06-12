@@ -113,7 +113,7 @@ class evolution:
                     except IOError:
                         print("File {} or {} cannot be found".format(src, golden))
                 else:
-                    fproc = subprocess.run(['fuzzycompare', s, golden], stdout=subprocess.PIPE)
+                    fproc = subprocess.run(['fuzzycompare', s, g], stdout=subprocess.PIPE)
                     result = result & (True if fproc.returncode==0 else False)
             return result
         else:
