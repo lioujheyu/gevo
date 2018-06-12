@@ -107,10 +107,14 @@ class evolution:
         elif self.verifier['mode'] == 'file':
             result = True
             for s, g in zip(src, golden):
-                try:
-                    result = result & filecmp.cmp(s, g)
-                except IOError:
-                    print("File {} or {} cannot be found".format(src, golden))
+                if self.verifier.get('fuzzy', False) == False:
+                    try:
+                        result = result & filecmp.cmp(s, g)
+                    except IOError:
+                        print("File {} or {} cannot be found".format(src, golden))
+                else:
+                    fproc = subprocess.run(['fuzzycompare', s, g])
+                    result = result & (True if fproc.returncode==0 else False)
             return result
         else:
             raise Exception("Unknown comparing mode \"{}\" from compare.json".format(
