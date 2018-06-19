@@ -7,20 +7,19 @@
 #include<exception>
 #include<cstdlib>
 
+#include<pybind11/pybind11.h>
+
 using namespace std;
 
-int main(int argc, char *argv[])
+int file(string src, string golden)
 {
-    if (argc < 3) {
-        cout << "usage: fuzzycompare <source_file> <golden_file>" << endl;
-        exit(-1);
+    ifstream sfp(src);
+    ifstream gfp(golden);
+
+    if (!sfp or !gfp) {
+        cout << src << " or " << golden << " cannot be opened." << endl;
+        return -1;
     }
-
-    ifstream sfp(argv[1]);
-    ifstream gfp(argv[2]);
-
-    if (!sfp or !gfp)
-        cout << argv[1] << " or " << argv[2] << " cannot be opened." << endl;
 
     string str;
     vector<string>sstrvec, gstrvec;
@@ -31,12 +30,12 @@ int main(int argc, char *argv[])
 
     if (sstrvec.size() != gstrvec.size()) {
         cout << 2 << endl;
-        exit(2);
+        return 2;
     }
 
     float sfloat;
     float gfloat;
-    for (int i=0; i<sstrvec.size(); i++) {
+    for (unsigned i=0; i<sstrvec.size(); i++) {
         // Skip the string that is float point number
         try {
             sfloat = stof(sstrvec[i]);
@@ -49,16 +48,35 @@ int main(int argc, char *argv[])
         // Check for Not a number
         if (isnan(sfloat)==true or isnan(gfloat)==true) {
             cout << "Not a Number detected!";
-            exit(1);
+            return 1;
         }
 
         // Main part for comparison by determining the esplon
         float esplon = fabs(gfloat * 0.01);
         if (fabs(sfloat - gfloat) > esplon) {
             cout << "s: " << sfloat << " <<>> g: " << gfloat << endl;
-            exit(1);
+            return 1;
         }
     }
 
-    exit(0);
+    return 0;
+}
+
+// int main(int argc, char *argv[])
+// {
+//     if (argc < 3) {
+//         cout << "usage: fuzzycompare <source_file> <golden_file>" << endl;
+//         exit(-1);
+//     }
+
+//     string source_filename = argv[1];
+//     string golden_filename = argv[2];
+//     int rc = file(source_filename, golden_filename);
+//     exit(rc);
+// }
+
+PYBIND11_MODULE(fuzzycompare, m) {
+    m.doc() = "Fuzzy compare"; // optional module docstring
+
+    m.def("file", &file, "File comparison");
 }
