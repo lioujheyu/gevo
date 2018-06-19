@@ -22,10 +22,7 @@ sys.path.append('/home/jliou4/genetic-programming/cuda_evolve')
 import irind
 from irind import llvmMutateWrap
 from irind import update_from_edits
-
-# Run shorter is better
-creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
-creator.create("Individual", irind.llvmIRrep, fitness=creator.FitnessMin)
+import fuzzycompare
 
 # critical section of multithreading
 lock = Lock()
@@ -44,7 +41,7 @@ class evolution:
         'maxFit':[], 'avgFit':[], 'minFit':[]
     }
 
-    def __init__(self, kernel, bin, args="", timeout=30,
+    def __init__(self, kernel, bin, args="", timeout=30, fitness='time',
                  llvm_src_filename='cuda-device-only-kernel.ll',
                  compare_filename="compare.json",
                  CXPB=0.8, MUPB=0.1):
@@ -54,6 +51,7 @@ class evolution:
         self.appBinary = bin
         self.appArgs = "" if args is None else args
         self.timeout = timeout
+        self.fitness_function = fitness
 
         try:
             with open(llvm_src_filename, 'r') as f:
@@ -69,6 +67,12 @@ class evolution:
             exit(1)
 
         # tools initialization
+        # Run shorter is better
+        if fitness == 'time':
+            creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
+        elif fitness == 'power':
+            creator.create("FitnessMin", base.Fitness, weights=(0.0,-1.0))
+        creator.create("Individual", irind.llvmIRrep, fitness=creator.FitnessMin)
         self.history = tools.History()
         self.toolbox = base.Toolbox()
         self.toolbox.register('mutate', self.mutLLVM)
@@ -113,8 +117,8 @@ class evolution:
                     except IOError:
                         print("File {} or {} cannot be found".format(src, golden))
                 else:
-                    fproc = subprocess.run(['fuzzycompare', s, g], stdout=subprocess.PIPE)
-                    result = result & (True if fproc.returncode==0 else False)
+                    rc = fuzzycompare.file(s, g)
+                    result = result & (True if rc==0 else False)
             return result
         else:
             raise Exception("Unknown comparing mode \"{}\" from compare.json".format(
@@ -145,7 +149,7 @@ class evolution:
             with lock:
                 fit = self.evaluate(test_ind)
                 print('m', end='', flush=True)
-            if fit[0] == 0:
+            if None in fit:
                 continue
 
             individual.update(srcEnc=test_ind.srcEnc)
@@ -178,9 +182,9 @@ class evolution:
             fit2 = self.evaluate(child2)
             print('c', end='', flush=True)
 
-        if fit1[0] != 0:
+        if None in fit1:
             ind1 = child1
-        if fit1[0] != 0:
+        if None in fit2:
             ind2 = child2
 
         return ind1, ind2
@@ -194,6 +198,7 @@ class evolution:
         # proc = subprocess.Popen(['nvprof', '--csv', '-u', 'us',
         proc = subprocess.Popen(['/usr/local/cuda/bin/nvprof',
                                  '--unified-memory-profiling', 'off',
+                                 '--system-profiling', 'on',
                                  '--csv',
                                  '-u', 'us',
                                  './' + self.appBinary] + self.appArgs,
@@ -204,7 +209,9 @@ class evolution:
             # retcode == 9: error is from testing program, not nvprof
             # retcode == 15: Target program receive segmentation fault
             if retcode == 9 or retcode == 15:
-                return 0,
+                print('x', end='', flush=True)
+                self.stats['invalid'] = self.stats['invalid'] + 1
+                return None, None
             # Unknown nvprof error
             if retcode != 0:
                 print(stderr.decode(), file=sys.stderr)
@@ -219,13 +226,13 @@ class evolution:
             proc.kill()
             proc.wait()
             self.stats['infinite'] = self.stats['infinite'] + 1
-            return 0,
+            return None, None
 
         program_output = stdout.decode()
         if self.resultCompare(program_output) == False:
             print('x', end='', flush=True)
             self.stats['invalid'] = self.stats['invalid'] + 1
-            return 0,
+            return None, None
         else:
             print('.', end='', flush=True)
             self.stats['valid'] = self.stats['valid'] + 1
@@ -234,22 +241,31 @@ class evolution:
 
             # search for kernel function(s)
             kernel_time = []
+            energy = None
             # The stats starts after 5th line
             for line in csv_list[5:]:
-                for name in self.kernels:
-                    # 8th column for name of CUDA function call
-                    try:
-                        if line[7].split('(')[0] == name:
-                            # 3rd column for avg execution time
-                            kernel_time.append(float(line[2]))
-                    except:
-                        continue
+                if len(line) == 0:
+                    continue
+                if line[0] == "GPU activities":
+                    for name in self.kernels:
+                        # 8th column for name of CUDA function call
+                        try:
+                            if line[7].split('(')[0] == name:
+                                # 3rd column for avg execution time
+                                kernel_time.append(float(line[2]))
+                        except:
+                            continue
+                if line[0] == "Power (mW)":
+                    count = int(line[2])
+                    avg_power = float(line[3])
+                    # The emprical shows that the sampling frequency is around 50Hz
+                    energy = count * avg_power / 20
 
-                if len(self.kernels) == len(kernel_time):
-                    return sum(kernel_time),
-
-            print("Can not find kernel \"{}\" from nvprof".format(self.kernels), file=sys.stderr)
-            return 0,
+            if len(self.kernels) == len(kernel_time) and energy is not None:
+                return sum(kernel_time), energy
+            else:
+                print("Can not find kernel \"{}\" from nvprof".format(self.kernels), file=sys.stderr)
+                return None, None
 
     def evolve(self, resumeGen):
         threadPool = []
@@ -298,7 +314,7 @@ class evolution:
                 if resultList[i] == False:
                     raise Exception("Could not reconstruct ind from edits:{}".format(ind.edits))
                 fitness = self.evaluate(ind)
-                if fitness[0] == 0:
+                if None in fitness:
                     for edit in ind.edits:
                         print(edit)
                     raise Exception("Encounter invalid individual during reconstruction")
@@ -306,7 +322,10 @@ class evolution:
 
         self.history.update(self.pop)
 
-        fits = [ind.fitness.values[0] for ind in self.pop]
+        if self.fitness_function == 'time':
+            fits = [ind.fitness.values[0] for ind in self.pop]
+        elif self.fitness_function == 'power':
+            fits = [ind.fitness.values[1] for ind in self.pop]
         self.stats['maxFit'].append(max(fits))
         self.stats['avgFit'].append((sum(fits)/len(fits)))
         self.stats['minFit'].append(min(fits))
@@ -360,7 +379,10 @@ class evolution:
             self.pop.extend(elite)
 
             # Gather all the fitnesses in one list and print the stats
-            fits = [ind.fitness.values[0] for ind in self.pop]
+            if self.fitness_function == 'time':
+                fits = [ind.fitness.values[0] for ind in self.pop]
+            elif self.fitness_function == 'power':
+                fits = [ind.fitness.values[1] for ind in self.pop]
 
             self.stats['maxFit'].append(max(fits))
             self.stats['avgFit'].append((sum(fits)/len(fits)))
@@ -383,12 +405,19 @@ if __name__ == '__main__':
         help="Resume the process from genetating the population by reading stage/<RESUME>.json")
     parser.add_argument('-t', '--timeout', type=int, default=30,
         help="The timeout period to evaluate the CUDA application")
+    parser.add_argument('-fitf', '--fitness_function', type=str, default='time',
+        help="What is the target fitness for the evolution. Default ot execution time. Can be changed to power")
     parser.add_argument('binary',help="Binary of the CUDA application", nargs='?', default='a.out')
     parser.add_argument('args',help="arguments for the application binary", nargs=argparse.REMAINDER)
     args = parser.parse_args()
 
     kernel = args.kernel.split(',')
-    evo = evolution(kernel=kernel, bin=args.binary, args=args.args, timeout=args.timeout)
+    evo = evolution(
+        kernel=kernel,
+        bin=args.binary,
+        args=args.args,
+        timeout=args.timeout,
+        fitness=args.fitness_function)
 
     print("      Target CUDA program: {}".format(args.binary))
     print("Args for the CUDA program: {}".format(" ".join(args.args)))
