@@ -68,10 +68,7 @@ class evolution:
 
         # tools initialization
         # Run shorter is better
-        if fitness == 'time':
-            creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
-        elif fitness == 'power':
-            creator.create("FitnessMin", base.Fitness, weights=(0.0,-1.0))
+        creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
         creator.create("Individual", irind.llvmIRrep, fitness=creator.FitnessMin)
         self.history = tools.History()
         self.toolbox = base.Toolbox()
@@ -211,7 +208,7 @@ class evolution:
             if retcode == 9 or retcode == 15:
                 print('x', end='', flush=True)
                 self.stats['invalid'] = self.stats['invalid'] + 1
-                return None, None
+                return None,
             # Unknown nvprof error
             if retcode != 0:
                 print(stderr.decode(), file=sys.stderr)
@@ -226,13 +223,13 @@ class evolution:
             proc.kill()
             proc.wait()
             self.stats['infinite'] = self.stats['infinite'] + 1
-            return None, None
+            return None,
 
         program_output = stdout.decode()
         if self.resultCompare(program_output) == False:
             print('x', end='', flush=True)
             self.stats['invalid'] = self.stats['invalid'] + 1
-            return None, None
+            return None,
         else:
             print('.', end='', flush=True)
             self.stats['valid'] = self.stats['valid'] + 1
@@ -262,16 +259,19 @@ class evolution:
                     energy = count * avg_power / 20
 
             if len(self.kernels) == len(kernel_time) and energy is not None:
-                return sum(kernel_time), energy
+                if self.fitness_function == 'time':
+                    return sum(kernel_time),
+                elif self.fitness_function == 'power':
+                    return energy,
             else:
                 print("Can not find kernel \"{}\" from nvprof".format(self.kernels), file=sys.stderr)
-                return None, None
+                return None,
 
     def evolve(self, resumeGen):
         threadPool = []
         if resumeGen == -1:
-            print("Initialize the population. Size 100")
             popSize = 100
+            print("Initialize the population. Size {}".format(popSize))
             self.pop = self.toolbox.population(n=popSize)
 
             # Initial 3x mutate to get diverse population
@@ -322,10 +322,7 @@ class evolution:
 
         self.history.update(self.pop)
 
-        if self.fitness_function == 'time':
-            fits = [ind.fitness.values[0] for ind in self.pop]
-        elif self.fitness_function == 'power':
-            fits = [ind.fitness.values[1] for ind in self.pop]
+        fits = [ind.fitness.values[0] for ind in self.pop]
         self.stats['maxFit'].append(max(fits))
         self.stats['avgFit'].append((sum(fits)/len(fits)))
         self.stats['minFit'].append(min(fits))
@@ -379,10 +376,7 @@ class evolution:
             self.pop.extend(elite)
 
             # Gather all the fitnesses in one list and print the stats
-            if self.fitness_function == 'time':
-                fits = [ind.fitness.values[0] for ind in self.pop]
-            elif self.fitness_function == 'power':
-                fits = [ind.fitness.values[1] for ind in self.pop]
+            fits = [ind.fitness.values[0] for ind in self.pop]
 
             self.stats['maxFit'].append(max(fits))
             self.stats['avgFit'].append((sum(fits)/len(fits)))
