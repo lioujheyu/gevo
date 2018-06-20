@@ -195,6 +195,7 @@ class evolution:
         # proc = subprocess.Popen(['nvprof', '--csv', '-u', 'us',
         proc = subprocess.Popen(['/usr/local/cuda/bin/nvprof',
                                  '--unified-memory-profiling', 'off',
+                                 '--profile-from-start', 'off',
                                  '--system-profiling', 'on',
                                  '--csv',
                                  '-u', 'us',
