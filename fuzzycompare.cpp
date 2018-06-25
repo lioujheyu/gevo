@@ -33,13 +33,13 @@ int file(string src, string golden)
         return 2;
     }
 
-    float sfloat;
-    float gfloat;
+    double sfloat;
+    double gfloat;
     for (unsigned i=0; i<sstrvec.size(); i++) {
         // Skip the string that is float point number
         try {
-            sfloat = stof(sstrvec[i]);
-            gfloat = stof(gstrvec[i]);
+            sfloat = stod(sstrvec[i]);
+            gfloat = stod(gstrvec[i]);
         }
         catch (std::invalid_argument const &e) {
             continue;
@@ -47,14 +47,14 @@ int file(string src, string golden)
 
         // Check for Not a number
         if (isnan(sfloat)==true or isnan(gfloat)==true) {
-            cout << "Not a Number detected!";
+//            cout << "Not a Number detected!";
             return 1;
         }
 
         // Main part for comparison by determining the esplon
         float esplon = fabs(gfloat * 0.01);
         if (fabs(sfloat - gfloat) > esplon) {
-            cout << "s: " << sfloat << " <<>> g: " << gfloat << endl;
+//            cout << "s: " << sfloat << " <<>> g: " << gfloat << endl;
             return 1;
         }
     }
@@ -62,21 +62,23 @@ int file(string src, string golden)
     return 0;
 }
 
-// int main(int argc, char *argv[])
-// {
-//     if (argc < 3) {
-//         cout << "usage: fuzzycompare <source_file> <golden_file>" << endl;
-//         exit(-1);
-//     }
+#ifdef STANDALONE
+int main(int argc, char *argv[])
+{
+    if (argc < 3) {
+        cout << "usage: fuzzycompare <source_file> <golden_file>" << endl;
+        exit(-1);
+    }
 
-//     string source_filename = argv[1];
-//     string golden_filename = argv[2];
-//     int rc = file(source_filename, golden_filename);
-//     exit(rc);
-// }
-
+    string source_filename = argv[1];
+    string golden_filename = argv[2];
+    int rc = file(source_filename, golden_filename);
+    exit(rc);
+}
+#else
 PYBIND11_MODULE(fuzzycompare, m) {
     m.doc() = "Fuzzy compare"; // optional module docstring
 
     m.def("file", &file, "File comparison");
 }
+#endif
