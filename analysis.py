@@ -69,12 +69,12 @@ class program(evolve.evolution):
                 print(": cannot compile")
                 continue
             fits = [self.evaluate(ind)[0] for i in range(3)]
-            fit = float(sum(fits)) / len(fits)
-            if fit == 0:
+            if None in fits:
                 print(": execution failed")
-            else:
-                improvement = baseFit/fit
-                print(": {}. Improvement: {}".format(fit, improvement))
+                continue
+            fit = float(sum(fits)) / len(fits)
+            improvement = baseFit/fit
+            print(": {}. Improvement: {}".format(fit, improvement))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Analyze the performance of mutation edits for CUDA kernel")
