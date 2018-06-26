@@ -20,13 +20,14 @@ class program(evolve.evolution):
     log = open('debug_log', 'w')
     cudaPTX = 'a.ptx'
 
-    def __init__(self, editf, kernel, bin, args="", timeout=30,
+    def __init__(self, editf, kernel, bin, args="", timeout=30, fitness='time',
                  llvm_src_filename='cuda-device-only-kernel.ll',
                  compare_filename="compare.json"):
         self.kernels = kernel
         self.appBinary = bin
         self.appArgs = "" if args is None else args
         self.timeout = timeout
+        self.fitness_function = fitness
 
         try:
             with open(editf, 'r') as f:
@@ -83,12 +84,14 @@ if __name__ == '__main__':
         help="The edit file")
     parser.add_argument('-t', '--timeout', type=int, default=30,
         help="The timeout period to evaluate the CUDA application")
+    parser.add_argument('-fitf', '--fitness_function', type=str, default='time',
+        help="What is the target fitness for the evolution. Default ot execution time. Can be changed to power")
     parser.add_argument('binary',help="Binary of the CUDA application", nargs='?', default='a.out')
     parser.add_argument('args',help="arguments for the application binary", nargs=argparse.REMAINDER)
     args = parser.parse_args()
 
     kernel = args.kernel.split(',')
-    alyz = program(editf=args.edit, kernel=kernel, bin=args.binary, args=args.args, timeout=args.timeout)
+    alyz = program(editf=args.edit, kernel=kernel, bin=args.binary, args=args.args, timeout=args.timeout, fitness=args.fitness_function)
 
     print("      Target CUDA program: {}".format(args.binary))
     print("Args for the CUDA program: {}".format(" ".join(args.args)))
