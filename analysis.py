@@ -97,5 +97,9 @@ if __name__ == '__main__':
     print("Args for the CUDA program: {}".format(" ".join(args.args)))
     print("           Target kernels: {}".format(" ".join(kernel)))
     print("       Evaluation Timeout: {}".format(args.timeout))
+    print("         Fitness function: {}".format(args.fitness_function))
 
-    alyz.edittest()
+    try:
+        alyz.edittest()
+    except KeyboardInterrupt:
+        subprocess.run(['killall', args.binary])
