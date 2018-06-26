@@ -13,11 +13,9 @@ from deap import tools
 
 sys.path.append('/home/jliou4/genetic-programming/cuda_evolve')
 import irind
+import evolve
 
-creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
-creator.create("Individual", irind.llvmIRrep, fitness=creator.FitnessMin)
-
-class program:
+class program(evolve.evolution):
     # Parameters
     log = open('debug_log', 'w')
     cudaPTX = 'a.ptx'
@@ -50,82 +48,11 @@ class program:
             print("File {} does not exist".format(compare_filename))
             exit(1)
 
+        creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
+        creator.create("Individual", irind.llvmIRrep, fitness=creator.FitnessMin)
         self.toolbox = base.Toolbox()
         self.toolbox.register('individual', creator.Individual, srcEnc=self.initSrcEnc)
         self.toolbox.register('population', tools.initRepeat, list, self.toolbox.individual)
-
-    def resultCompare(self, stdoutStr):
-        src = stdoutStr if self.verifier['source'] == 'stdout' else self.verifier['source']
-        golden = self.verifier['golden']
-
-        if self.verifier['mode'] == 'string':
-            return False if src.find(golden) == -1 else True
-        elif self.verifier['mode'] == 'file':
-            result = True
-            for s, g in zip(src, golden):
-                try:
-                    result = result & filecmp.cmp(s, g)
-                except IOError:
-                    print("File {} or {} cannot be found".format(src, golden))
-            return result
-        else:
-            raise Exception("Unknown comparing mode \"{}\" from compare.json".format(
-                self.verifier['mode']))
-
-    def evaluate(self, individual):
-        # link
-        individual.ptx(self.cudaPTX)
-        with open('a.ll', 'w') as f:
-            f.write(individual.srcEnc.decode())
-
-        proc = subprocess.Popen(['/usr/local/cuda/bin/nvprof',
-                                 '--unified-memory-profiling', 'off',
-                                 '--csv',
-                                 '-u', 'us',
-                                 './' + self.appBinary] + self.appArgs,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        try:
-            stdout, stderr = proc.communicate(timeout=self.timeout) # second
-            retcode = proc.poll()
-            # retcode == 9: error is from testing program, not nvprof
-            if retcode != 9 and retcode != 0:
-                print(stderr.decode(), file=sys.stderr)
-                raise Exception('nvprof error')
-        except subprocess.TimeoutExpired:
-            # Sometimes terminating nvprof will not terminate the underlying cuda program
-            # if that program is corrupted. So issue the kill command to those cuda app first
-            print('8', end='', flush=True)
-            subprocess.run(['killall', self.appBinary])
-            proc.kill()
-            proc.wait()
-            return 0,
-
-        program_output = stdout.decode()
-        if self.resultCompare(program_output) == False:
-            print('x', end='', flush=True)
-            return 0,
-        else:
-            profile_output = stderr.decode()
-            csv_list = list(csv.reader(StringIO(profile_output), delimiter=','))
-
-            # search for kernel function(s)
-            kernel_time = []
-            # The stats starts after 5th line
-            for line in csv_list[5:]:
-                for name in self.kernels:
-                    # 8th column for name of CUDA function call
-                    try:
-                        if line[7].split('(')[0] == name:
-                            # 3rd column for avg execution time
-                            kernel_time.append(float(line[2]))
-                    except:
-                        print(stderr.decode(), file=sys.stderr)
-                        exit()
-
-                if len(self.kernels) == len(kernel_time):
-                    return sum(kernel_time),
-
-            raise Exception("{} is not a valid kernel function from nvprof".format(self.kernels))
 
     def edittest(self):
         baseInd = creator.Individual(self.initSrcEnc)
@@ -169,11 +96,3 @@ if __name__ == '__main__':
     print("       Evaluation Timeout: {}".format(args.timeout))
 
     alyz.edittest()
-
-    # try:
-    #     evo.evolve(args.resume)
-    # except KeyboardInterrupt:
-    #     print("valid variant:   {}".format(evo.stats['valid']))
-    #     print("invalid variant: {}".format(evo.stats['invalid']))
-    #     print("infinite variant:{}".format(evo.stats['infinite']))
-    #     subprocess.run(['killall', args.binary])
