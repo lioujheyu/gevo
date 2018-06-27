@@ -6,19 +6,20 @@
 #include<vector>
 #include<exception>
 #include<cstdlib>
+#include<tuple>
 
 #include<pybind11/pybind11.h>
 
 using namespace std;
 
-int file(string src, string golden)
+tuple<int, string> file(string src, string golden)
 {
     ifstream sfp(src);
     ifstream gfp(golden);
 
     if (!sfp or !gfp) {
         cout << src << " or " << golden << " cannot be opened." << endl;
-        return -1;
+        return make_tuple(-1, src + " or " + golden + " cannot be opened.");
     }
 
     string str;
@@ -28,10 +29,8 @@ int file(string src, string golden)
     while (gfp >> str)
         gstrvec.push_back(str);
 
-    if (sstrvec.size() != gstrvec.size()) {
-        cout << 2 << endl;
-        return 2;
-    }
+    if (sstrvec.size() != gstrvec.size())
+        return make_tuple(-2, "number of string mismatched.");
 
     double sfloat;
     double gfloat;
@@ -46,20 +45,19 @@ int file(string src, string golden)
         }
 
         // Check for Not a number
-        if (isnan(sfloat)==true or isnan(gfloat)==true) {
-//            cout << "Not a Number detected!";
-            return 1;
-        }
+        if (isnan(sfloat)==true or isnan(gfloat)==true)
+            return make_tuple(1, "Not a Number detected!");
 
         // Main part for comparison by determining the esplon
         float esplon = fabs(gfloat * 0.01);
         if (fabs(sfloat - gfloat) > esplon) {
-//            cout << "s: " << sfloat << " <<>> g: " << gfloat << endl;
-            return 1;
+            string msg = "s: " + to_string(sfloat) + " <<>> g: " + to_string(gfloat);
+            return make_tuple(1, msg);
         }
     }
 
-    return 0;
+    return make_tuple(1, "");
+    // return 0;
 }
 
 #ifdef STANDALONE
@@ -72,8 +70,9 @@ int main(int argc, char *argv[])
 
     string source_filename = argv[1];
     string golden_filename = argv[2];
-    int rc = file(source_filename, golden_filename);
-    exit(rc);
+    tuple<int, string> rc = file(source_filename, golden_filename);
+    cout << get<1>(rc) << endl;
+    exit(get<0>(rc));
 }
 #else
 PYBIND11_MODULE(fuzzycompare, m) {

@@ -114,7 +114,7 @@ class evolution:
                     except IOError:
                         print("File {} or {} cannot be found".format(src, golden))
                 else:
-                    rc = fuzzycompare.file(s, g)
+                    rc, __ = fuzzycompare.file(s, g)
                     result = result & (True if rc==0 else False)
             return result
         else:
