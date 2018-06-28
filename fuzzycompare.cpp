@@ -58,7 +58,7 @@ tuple<int, string> file(string src, string golden)
         }
     }
 
-    return make_tuple(1, "");
+    return make_tuple(0, "");
     // return 0;
 }
 
