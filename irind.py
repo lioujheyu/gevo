@@ -10,7 +10,7 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
     return returnCode, mutated and encoded source, edit with UID
     """
     mut_command = ['llvm-mutate']
-    if op == 'c':
+    if op == 'c' or op == 'm':
         mut_command.extend(['-'+op, field1])
     else:
         mut_command.extend(['-'+op, field1 + ',' + field2])
