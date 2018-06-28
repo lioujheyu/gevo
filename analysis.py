@@ -98,6 +98,7 @@ if __name__ == '__main__':
     print("           Target kernels: {}".format(" ".join(kernel)))
     print("       Evaluation Timeout: {}".format(args.timeout))
     print("         Fitness function: {}".format(args.fitness_function))
+    print("                Edit file: {}".format(args.edit))
 
     try:
         alyz.edittest()

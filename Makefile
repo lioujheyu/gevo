@@ -1,6 +1,6 @@
 fuzzycompare: fuzzycompare.cpp
 	g++ -shared -Wall --std=c++11 -O3 $< -o $@`python3-config --extension-suffix` -fPIC `python3 -m pybind11 --includes`
-	g++ -Wall --std=c++11 -O3 $< -o $@ -fPIC `python3 -m pybind11 --includes` -DSTANDALONE
+	g++ -DSTANDALONE -Wall --std=c++11 -O3 $< -o $@ -fPIC
 
 clean:
 	rm -f fuzzycompare

@@ -8,7 +8,9 @@
 #include<cstdlib>
 #include<tuple>
 
-#include<pybind11/pybind11.h>
+#ifndef STANDALONE
+#   include<pybind11/pybind11.h>
+#endif
 
 using namespace std;
 
