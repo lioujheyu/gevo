@@ -39,7 +39,7 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
         print(*mut_command)
         raise Exception("Could not understand the result from llvm-mutate")
 
-    if op == 'c':
+    if op == 'c' or op == 'm':
         editUID = ('-'+op, result.group(1))
     else:
         editUID = ('-'+op, result.group(1) + ',' + result.group(3))
