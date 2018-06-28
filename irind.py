@@ -29,7 +29,7 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
     mutateSrc = proc.stdout
     # read the uniqueID of the processed instructions
     for line in proc.stderr.decode().split('\n'):
-        result = re.search('\w+ (U[0-9.irs]+)(,(U[0-9.irs]+))?', line)
+        result = re.search('\w+ (U[0-9.irsm]+)(,(U[0-9.irsm]+))?', line)
         if result != None:
             break
     if result == None:
