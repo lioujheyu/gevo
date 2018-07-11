@@ -74,7 +74,7 @@ class evolution:
         self.toolbox = base.Toolbox()
         self.toolbox.register('mutate', self.mutLLVM)
         self.toolbox.register('mate', self.cxOnePointLLVM)
-        self.toolbox.register('select', tools.selDoubleTournament, fitness_size=2, parsimony_size=0.7, fitness_first=True)
+        self.toolbox.register('select', tools.selDoubleTournament, fitness_size=2, parsimony_size=1.4, fitness_first=True)
         self.toolbox.register('individual', creator.Individual, srcEnc=self.initSrcEnc)
         self.toolbox.register('population', tools.initRepeat, list, self.toolbox.individual)
         # Decorate the variation operators
@@ -385,7 +385,7 @@ class evolution:
             self.pop.extend(elite)
 
             # Gather all the fitnesses in one list and print the stats
-            fits = [ind.fitness.values[0] for ind in self.pop]
+            fits = [ind.fitness.values for ind in self.pop]
 
             self.stats['maxFit'].append(max(fits))
             # self.stats['avgFit'].append((sum(fits)/len(fits)))
