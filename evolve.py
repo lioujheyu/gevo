@@ -68,13 +68,13 @@ class evolution:
 
         # tools initialization
         # Run shorter is better
-        creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
+        creator.create("FitnessMin", base.Fitness, weights=(-1.0, -0.1))
         creator.create("Individual", irind.llvmIRrep, fitness=creator.FitnessMin)
         self.history = tools.History()
         self.toolbox = base.Toolbox()
         self.toolbox.register('mutate', self.mutLLVM)
         self.toolbox.register('mate', self.cxOnePointLLVM)
-        self.toolbox.register('select', tools.selTournament, tournsize=2)
+        self.toolbox.register('select', tools.selDoubleTournament, fitness_size=2, parsimony_size=0.7, fitness_first=True)
         self.toolbox.register('individual', creator.Individual, srcEnc=self.initSrcEnc)
         self.toolbox.register('population', tools.initRepeat, list, self.toolbox.individual)
         # Decorate the variation operators
@@ -83,9 +83,9 @@ class evolution:
 
     def printGen(self, gen):
         print("-- Generation %s --" % gen)
-        print("  Max %s" % self.stats['maxFit'][gen])
-        print("  Avg %s" % self.stats['avgFit'][gen])
-        print("  Min %s" % self.stats['minFit'][gen])
+        print("  Max {}".format(self.stats['maxFit'][gen]))
+        # print("  Avg %s" % self.stats['avgFit'][gen])
+        print("  Min {}".format(self.stats['minFit'][gen]))
 
     def writeStage(self):
         pathlib.Path('stage').mkdir(exist_ok=True)
@@ -107,6 +107,7 @@ class evolution:
             return False if src.find(golden) == -1 else True
         elif self.verifier['mode'] == 'file':
             result = True
+            err = 0.0
             for s, g in zip(src, golden):
                 if self.verifier.get('fuzzy', False) == False:
                     try:
@@ -114,9 +115,12 @@ class evolution:
                     except IOError:
                         print("File {} or {} cannot be found".format(src, golden))
                 else:
-                    rc, __, maxerr, avgerr = fuzzycompare.file(s, g)
+                    rc, msg, maxerr, avgerr = fuzzycompare.file(s, g)
+                    if rc < 0:
+                        raise Exception(msg)
                     result = result & (True if rc==0 else False)
-            return result
+                    err = maxerr if maxerr > err else err
+            return result, err
         else:
             raise Exception("Unknown comparing mode \"{}\" from compare.json".format(
                 self.verifier['mode']))
@@ -192,7 +196,6 @@ class evolution:
         with open('a.ll', 'w') as f:
             f.write(individual.srcEnc.decode())
 
-        # proc = subprocess.Popen(['nvprof', '--csv', '-u', 'us',
         proc = subprocess.Popen(['/usr/local/cuda/bin/nvprof',
                                  '--unified-memory-profiling', 'off',
                                  '--profile-from-start', 'off',
@@ -209,7 +212,7 @@ class evolution:
             if retcode == 9 or retcode == 15:
                 print('x', end='', flush=True)
                 self.stats['invalid'] = self.stats['invalid'] + 1
-                return None,
+                return None, None
             # Unknown nvprof error
             if retcode != 0:
                 print(stderr.decode(), file=sys.stderr)
@@ -224,13 +227,14 @@ class evolution:
             proc.kill()
             proc.wait()
             self.stats['infinite'] = self.stats['infinite'] + 1
-            return None,
+            return None, None
 
         program_output = stdout.decode()
-        if self.resultCompare(program_output) == False:
+        cmpResult, err = self.resultCompare(program_output)
+        if cmpResult is False:
             print('x', end='', flush=True)
             self.stats['invalid'] = self.stats['invalid'] + 1
-            return None,
+            return None, None
         else:
             print('.', end='', flush=True)
             self.stats['valid'] = self.stats['valid'] + 1
@@ -261,25 +265,25 @@ class evolution:
 
             if len(self.kernels) == len(kernel_time) and energy is not None:
                 if self.fitness_function == 'time':
-                    return sum(kernel_time),
+                    return sum(kernel_time), err
                 elif self.fitness_function == 'power':
-                    return energy,
+                    return energy, err
             else:
                 print("Can not find kernel \"{}\" from nvprof".format(self.kernels), file=sys.stderr)
-                return None,
+                return None, None
 
     def evolve(self, resumeGen):
         threadPool = []
         if resumeGen == -1:
-            popSize = 100
+            popSize = 2
             print("Initialize the population. Size {}".format(popSize))
             self.pop = self.toolbox.population(n=popSize)
 
             # Initial 3x mutate to get diverse population
             for ind in self.pop:
                 self.toolbox.mutate(ind)
-                self.toolbox.mutate(ind)
-                self.toolbox.mutate(ind)
+                # self.toolbox.mutate(ind)
+                # self.toolbox.mutate(ind)
             self.writeStage()
         else:
             if resumeGen == 0:
@@ -323,9 +327,13 @@ class evolution:
 
         self.history.update(self.pop)
 
-        fits = [ind.fitness.values[0] for ind in self.pop]
+        fits = [ind.fitness.values for ind in self.pop]
         self.stats['maxFit'].append(max(fits))
-        self.stats['avgFit'].append((sum(fits)/len(fits)))
+        # self.stats['avgFit'].append((sum(fits)/len(fits)))
+        # self.stats['avgFit'].append(
+
+        #     (sum(fits)/len(fits))
+        # )
         self.stats['minFit'].append(min(fits))
         self.printGen(self.generation)
 
@@ -380,7 +388,7 @@ class evolution:
             fits = [ind.fitness.values[0] for ind in self.pop]
 
             self.stats['maxFit'].append(max(fits))
-            self.stats['avgFit'].append((sum(fits)/len(fits)))
+            # self.stats['avgFit'].append((sum(fits)/len(fits)))
             self.stats['minFit'].append(min(fits))
             print("")
             self.printGen(self.generation)

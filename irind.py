@@ -80,7 +80,7 @@ def update_from_edits(idx, ind, resultList):
     ind.update(proc.stdout)
     resultList[idx] = True
 
-class llvmIRrep:
+class llvmIRrep():
     edits = []
     srcEnc = ""
     lineSize = 0
@@ -92,6 +92,9 @@ class llvmIRrep:
         else:
             self.edits = edits
         self.update_linesize()
+
+    def __len__(self):
+        return len(self.edits)
 
     def update_linesize(self):
         try:
