@@ -336,6 +336,7 @@ class evolution:
         logbook = tools.Logbook()
         logbook.header = "gen", "evals", "std", "min", "avg", "max"
         logbook.record(gen=0, evals=popSize, **record)
+        print("")
         print(logbook.stream)
 
         while True:
@@ -381,6 +382,7 @@ class evolution:
             record = self.stats.compile(self.pop)
             logbook.record(gen=self.generation, evals=popSize, **record)
 
+            print("")
             print(logbook.stream)
             self.writeStage()
 
