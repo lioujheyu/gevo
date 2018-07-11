@@ -108,11 +108,12 @@ class evolution:
         src = stdoutStr if self.verifier['source'] == 'stdout' else self.verifier['source']
         golden = self.verifier['golden']
 
+        err = 0.0
         if self.verifier['mode'] == 'string':
-            return False if src.find(golden) == -1 else True
+            result = False if src.find(golden) == -1 else True
+            return result, err
         elif self.verifier['mode'] == 'file':
             result = True
-            err = 0.0
             for s, g in zip(src, golden):
                 if self.verifier.get('fuzzy', False) == False:
                     try:
