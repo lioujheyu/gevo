@@ -14,6 +14,7 @@ from threading import Lock
 
 # import matplotlib.pyplot as plt
 # import networkx as nx
+import numpy
 from deap import base
 from deap import creator
 from deap import tools
@@ -36,11 +37,10 @@ class evolution:
     pop = []
     generation = 0
 
-    stats = {
+    mutStats = {
         'valid':0, 'invalid':0, 'infinite':0,
         'maxFit':[], 'avgFit':[], 'minFit':[]
     }
-
     def __init__(self, kernel, bin, args="", timeout=30, fitness='time',
                  llvm_src_filename='cuda-device-only-kernel.ll',
                  compare_filename="compare.json",
@@ -67,25 +67,30 @@ class evolution:
             exit(1)
 
         # tools initialization
-        # Run shorter is better
-        creator.create("FitnessMin", base.Fitness, weights=(-1.0, -0.1))
+        # Minimize both performance and error
+        creator.create("FitnessMin", base.Fitness, weights=(-1.0, -1.0))
         creator.create("Individual", irind.llvmIRrep, fitness=creator.FitnessMin)
         self.history = tools.History()
         self.toolbox = base.Toolbox()
         self.toolbox.register('mutate', self.mutLLVM)
         self.toolbox.register('mate', self.cxOnePointLLVM)
-        self.toolbox.register('select', tools.selDoubleTournament, fitness_size=2, parsimony_size=1.4, fitness_first=True)
+        # self.toolbox.register('select', tools.selDoubleTournament, fitness_size=2, parsimony_size=1.4, fitness_first=True)
+        self.toolbox.register('select', tools.selNSGA2)
         self.toolbox.register('individual', creator.Individual, srcEnc=self.initSrcEnc)
         self.toolbox.register('population', tools.initRepeat, list, self.toolbox.individual)
         # Decorate the variation operators
         self.toolbox.decorate("mate", self.history.decorator)
         self.toolbox.decorate("mutate", self.history.decorator)
 
-    def printGen(self, gen):
-        print("-- Generation %s --" % gen)
-        print("  Max {}".format(self.stats['maxFit'][gen]))
-        # print("  Avg %s" % self.stats['avgFit'][gen])
-        print("  Min {}".format(self.stats['minFit'][gen]))
+        self.stats = tools.Statistics(lambda ind: ind.fitness.values)
+        self.stats.register("min", numpy.min, axis=0)
+        self.stats.register("max", numpy.max, axis=0)
+
+    # def printGen(self, gen):
+    #     print("-- Generation %s --" % gen)
+    #     print("  Max {}".format(self.stats['maxFit'][gen]))
+    #     # print("  Avg %s" % self.stats['avgFit'][gen])
+    #     print("  Min {}".format(self.stats['minFit'][gen]))
 
     def writeStage(self):
         pathlib.Path('stage').mkdir(exist_ok=True)
@@ -211,7 +216,7 @@ class evolution:
             # retcode == 15: Target program receive segmentation fault
             if retcode == 9 or retcode == 15:
                 print('x', end='', flush=True)
-                self.stats['invalid'] = self.stats['invalid'] + 1
+                self.mutStats['invalid'] = self.mutStats['invalid'] + 1
                 return None, None
             # Unknown nvprof error
             if retcode != 0:
@@ -226,18 +231,18 @@ class evolution:
                            stderr=subprocess.PIPE)
             proc.kill()
             proc.wait()
-            self.stats['infinite'] = self.stats['infinite'] + 1
+            self.mutStats['infinite'] = self.mutStats['infinite'] + 1
             return None, None
 
         program_output = stdout.decode()
         cmpResult, err = self.resultCompare(program_output)
         if cmpResult is False:
             print('x', end='', flush=True)
-            self.stats['invalid'] = self.stats['invalid'] + 1
+            self.mutStats['invalid'] = self.mutStats['invalid'] + 1
             return None, None
         else:
             print('.', end='', flush=True)
-            self.stats['valid'] = self.stats['valid'] + 1
+            self.mutStats['valid'] = self.mutStats['valid'] + 1
             profile_output = stderr.decode()
             csv_list = list(csv.reader(StringIO(profile_output), delimiter=','))
 
@@ -301,9 +306,6 @@ class evolution:
             print("Resume the population from {}. Size {}".format(stageFileName, popSize))
             self.pop = self.toolbox.population(n=popSize)
             self.generation = resumeGen
-            self.stats['maxFit'] = [None] * resumeGen
-            self.stats['avgFit'] = [None] * resumeGen
-            self.stats['minFit'] = [None] * resumeGen
 
             resultList = [False] * popSize
             for i, (edits, ind) in enumerate(zip(allEdits, self.pop)):
@@ -325,36 +327,30 @@ class evolution:
                     raise Exception("Encounter invalid individual during reconstruction")
                 ind.fitness.values = fitness
 
+        # This is to assign the crowding distance to the individuals
+        # and also to sort the pop with front rank
+        self.pop = self.toolbox.select(self.pop, popSize)
         self.history.update(self.pop)
+        record = self.stats.compile(self.pop)
+        logbook = tools.Logbook()
+        logbook.header = "gen", "evals", "std", "min", "avg", "max"
+        logbook.record(gen=0, evals=popSize, **record)
+        print(logbook.stream)
 
-        fits = [ind.fitness.values for ind in self.pop]
-        self.stats['maxFit'].append(max(fits))
-        # self.stats['avgFit'].append((sum(fits)/len(fits)))
-        # self.stats['avgFit'].append(
-
-        #     (sum(fits)/len(fits))
-        # )
-        self.stats['minFit'].append(min(fits))
-        self.printGen(self.generation)
-
-        # while self.generation < 100:
         while True:
-            offspring = self.toolbox.select(self.pop, popSize)
-            # Preserve individual who has the highest fitness
-            elite = tools.selBest(self.pop, 1)
+            offspring = tools.selTournamentDCD(self.pop, popSize)
             # Clone the selected individuals
             offspring = list(map(self.toolbox.clone, offspring))
-            elite = list(map(self.toolbox.clone, elite))
             with open("best-{}.ll".format(self.generation), 'w') as f:
-                f.write(elite[0].srcEnc.decode())
+                f.write(self.pop[0].srcEnc.decode())
             with open("best-{}.edit".format(self.generation), 'w') as f:
-                print(elite[0].edits, file=f)
+                print(self.pop[0].edits, file=f)
 
             self.generation = self.generation + 1
 
             threadPool.clear()
             for child1, child2 in zip(offspring[::2], offspring[1::2]):
-                if len(child1.edits) < 2 and len(child2.edits) < 2:
+                if len(child1) < 2 and len(child2) < 2:
                     continue
                 if random.random() < self.CXPB:
                     threadPool.append(
@@ -380,25 +376,12 @@ class evolution:
             for ind, fit in zip(invalid_ind, fitnesses):
                 ind.fitness.values = fit
 
-            self.pop[:] = offspring
+            self.pop = self.toolbox.select(self.pop + offspring, popSize)
+            record = self.stats.compile(self.pop)
+            logbook.record(gen=self.generation, evals=popSize, **record)
+
+            print(logbook.stream)
             self.writeStage()
-            self.pop.extend(elite)
-
-            # Gather all the fitnesses in one list and print the stats
-            fits = [ind.fitness.values for ind in self.pop]
-
-            self.stats['maxFit'].append(max(fits))
-            # self.stats['avgFit'].append((sum(fits)/len(fits)))
-            self.stats['minFit'].append(min(fits))
-            print("")
-            self.printGen(self.generation)
-
-        # graph = nx.DiGraph(history.genealogy_tree)
-        # graph = graph.reverse()     # Make the graph top-down
-        # colors = [self.evaluate(history.genealogy_history[i])[0] for i in graph]
-        # pos = nx.nx_agraph.graphviz_layout(graph, prog='dot')
-        # nx.draw(graph, pos, node_color=colors)
-        # plt.savefig('genealogy.png')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Evolve CUDA kernel function")
