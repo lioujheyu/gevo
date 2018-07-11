@@ -275,15 +275,15 @@ class evolution:
     def evolve(self, resumeGen):
         threadPool = []
         if resumeGen == -1:
-            popSize = 2
+            popSize = 100
             print("Initialize the population. Size {}".format(popSize))
             self.pop = self.toolbox.population(n=popSize)
 
             # Initial 3x mutate to get diverse population
             for ind in self.pop:
                 self.toolbox.mutate(ind)
-                # self.toolbox.mutate(ind)
-                # self.toolbox.mutate(ind)
+                self.toolbox.mutate(ind)
+                self.toolbox.mutate(ind)
             self.writeStage()
         else:
             if resumeGen == 0:
