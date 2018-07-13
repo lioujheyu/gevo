@@ -19,7 +19,6 @@ from deap import base
 from deap import creator
 from deap import tools
 import pptx
-from PIL import Image
 
 sys.path.append('/home/jliou4/genetic-programming/cuda_evolve')
 import irind
@@ -112,13 +111,13 @@ class evolution:
         buf = io.BytesIO()
         plt.savefig(buf, format='png')
         buf.seek(0)
-        img = Image.open(buf)
 
         slide = self.presentation.slides.add_slide(self.presentation.slide_layouts[6])
         # left = (self.presentation.slide_width - pptx.util.px(640))/2
         # top = (self.presentation.slide_height - pptx.util.px(480))/2
         left = top = pptx.util.Inches(1)
-        pic = slide.shapes.add_picture(img, left, top)
+        pic = slide.shapes.add_picture(buf, left, top)
+        buf.close()
 
     def writeStage(self):
         pathlib.Path('stage').mkdir(exist_ok=True)
@@ -332,7 +331,7 @@ class evolution:
                 exit(1)
 
             # popSize = len(allEdits)
-            popSize = 1
+            popSize = 10
             print("Resume the population from {}. Size {}".format(stageFileName, popSize))
             self.pop = self.toolbox.population(n=popSize)
             self.generation = resumeGen
