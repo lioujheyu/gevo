@@ -101,23 +101,26 @@ class evolution:
     def updateSlideFromPlot(self):
         pffits = [ind.fitness.values for ind in self.paretof]
         fits = [ind.fitness.values for ind in self.pop if ind not in pffits]
+        plt.gcf().subplots_adjust(bottom=0.15)
         plt.title("Program variant performance - Generation {}".format(self.generation))
-        plt.xlabel("Runtime")
-        plt.ylabel("Error")
-        plt.scatter([fit[0] for fit in fits], [fit[1] for fit in fits],
+        plt.xlabel("Runtime(ms)")
+        plt.ylabel("Error(%)")
+        plt.ylim(ymin=-0.1, ymax=1.0)
+        plt.xticks(rotation=45)
+        plt.scatter([fit[0]/1000 for fit in fits], [fit[1] for fit in fits],
                     marker='*', label="dominated")
-        plt.scatter([pffit[0] for pffit in pffits], [pffit[1] for pffit in pffits],
+        plt.scatter([pffit[0]/1000 for pffit in pffits], [pffit[1] for pffit in pffits],
                     marker='o', c='red', label="pareto front")
+        plt.legend()
         buf = io.BytesIO()
         plt.savefig(buf, format='png')
         buf.seek(0)
 
         slide = self.presentation.slides.add_slide(self.presentation.slide_layouts[6])
-        # left = (self.presentation.slide_width - pptx.util.px(640))/2
-        # top = (self.presentation.slide_height - pptx.util.px(480))/2
         left = top = pptx.util.Inches(1)
         pic = slide.shapes.add_picture(buf, left, top)
         buf.close()
+        self.presentation.save('progress.pptx')
 
     def writeStage(self):
         pathlib.Path('stage').mkdir(exist_ok=True)
@@ -153,7 +156,7 @@ class evolution:
                         raise Exception(msg)
                     result = result & (True if rc==0 else False)
                     err = maxerr if maxerr > err else err
-            return result, err
+            return result, err*100 # for percentage
         else:
             raise Exception("Unknown comparing mode \"{}\" from compare.json".format(
                 self.verifier['mode']))
