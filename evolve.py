@@ -8,16 +8,18 @@ import json
 import pathlib
 import sys
 import filecmp
-from io import StringIO
+import io
 from threading import Thread
 from threading import Lock
 
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 # import networkx as nx
 import numpy
 from deap import base
 from deap import creator
 from deap import tools
+import pptx
+from PIL import Image
 
 sys.path.append('/home/jliou4/genetic-programming/cuda_evolve')
 import irind
@@ -36,6 +38,7 @@ class evolution:
     # Content
     pop = []
     generation = 0
+    presentation = pptx.Presentation()
 
     mutStats = {
         'valid':0, 'invalid':0, 'infinite':0,
@@ -83,14 +86,39 @@ class evolution:
         self.toolbox.decorate("mutate", self.history.decorator)
 
         self.stats = tools.Statistics(lambda ind: ind.fitness.values)
-        self.stats.register("min", numpy.min, axis=0)
-        self.stats.register("max", numpy.max, axis=0)
+        self.stats.register("min", min)
+        self.stats.register("max", max)
+
+        self.logbook = tools.Logbook()
+        self.paretof = tools.ParetoFront()
+        self.logbook.header = "gen", "evals", "min", "max"
 
     # def printGen(self, gen):
     #     print("-- Generation %s --" % gen)
     #     print("  Max {}".format(self.stats['maxFit'][gen]))
     #     # print("  Avg %s" % self.stats['avgFit'][gen])
     #     print("  Min {}".format(self.stats['minFit'][gen]))
+
+    def updateSlideFromPlot(self):
+        pffits = [ind.fitness.values for ind in self.paretof]
+        fits = [ind.fitness.values for ind in self.pop if ind not in pffits]
+        plt.title("Program variant performance - Generation {}".format(self.generation))
+        plt.xlabel("Runtime")
+        plt.ylabel("Error")
+        plt.scatter([fit[0] for fit in fits], [fit[1] for fit in fits],
+                    marker='*', label="dominated")
+        plt.scatter([pffit[0] for pffit in pffits], [pffit[1] for pffit in pffits],
+                    marker='o', c='red', label="pareto front")
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png')
+        buf.seek(0)
+        img = Image.open(buf)
+
+        slide = self.presentation.slides.add_slide(self.presentation.slide_layouts[6])
+        # left = (self.presentation.slide_width - pptx.util.px(640))/2
+        # top = (self.presentation.slide_height - pptx.util.px(480))/2
+        left = top = pptx.util.Inches(1)
+        pic = slide.shapes.add_picture(img, left, top)
 
     def writeStage(self):
         pathlib.Path('stage').mkdir(exist_ok=True)
@@ -245,7 +273,7 @@ class evolution:
             print('.', end='', flush=True)
             self.mutStats['valid'] = self.mutStats['valid'] + 1
             profile_output = stderr.decode()
-            csv_list = list(csv.reader(StringIO(profile_output), delimiter=','))
+            csv_list = list(csv.reader(io.StringIO(profile_output), delimiter=','))
 
             # search for kernel function(s)
             kernel_time = []
@@ -303,7 +331,8 @@ class evolution:
                 print(sys.exc_info())
                 exit(1)
 
-            popSize = len(allEdits)
+            # popSize = len(allEdits)
+            popSize = 1
             print("Resume the population from {}. Size {}".format(stageFileName, popSize))
             self.pop = self.toolbox.population(n=popSize)
             self.generation = resumeGen
@@ -333,11 +362,17 @@ class evolution:
         self.pop = self.toolbox.select(self.pop, popSize)
         self.history.update(self.pop)
         record = self.stats.compile(self.pop)
-        logbook = tools.Logbook()
-        logbook.header = "gen", "evals", "std", "min", "avg", "max"
-        logbook.record(gen=0, evals=popSize, **record)
+        self.paretof.update(self.pop)
+        self.logbook.record(gen=0, evals=popSize, **record)
         print("")
-        print(logbook.stream)
+        print(self.logbook.stream)
+        self.updateSlideFromPlot()
+
+        # pffits = [ind.fitness.values for ind in self.paretof]
+        # fits = [ind.fitness.values for ind in self.pop if ind not in pffits]
+        # plt.scatter([fit[0] for fit in fits], [fit[1] for fit in fits], marker='*')
+        # plt.scatter([pffits[0] for fit in fits], [pffits[1] for fit in fits], marker='o', c=red)
+        # plt.savefig(str(self.generation) + '.png')
 
         while True:
             offspring = tools.selTournamentDCD(self.pop, popSize)
@@ -380,10 +415,12 @@ class evolution:
 
             self.pop = self.toolbox.select(self.pop + offspring, popSize)
             record = self.stats.compile(self.pop)
-            logbook.record(gen=self.generation, evals=popSize, **record)
+            self.logbook.record(gen=self.generation, evals=popSize, **record)
+            self.paretof.update(self.pop)
 
             print("")
-            print(logbook.stream)
+            print(self.logbook.stream)
+            self.updateSlideFromPlot()
             self.writeStage()
 
 if __name__ == '__main__':
@@ -417,7 +454,9 @@ if __name__ == '__main__':
     try:
         evo.evolve(args.resume)
     except KeyboardInterrupt:
+        subprocess.run(['killall', args.binary])
         print("valid variant:   {}".format(evo.stats['valid']))
         print("invalid variant: {}".format(evo.stats['invalid']))
         print("infinite variant:{}".format(evo.stats['infinite']))
-        subprocess.run(['killall', args.binary])
+        if evo.generation > 0:
+            evo.presentation.save('progress.pptx')
