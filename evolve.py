@@ -12,6 +12,9 @@ import io
 from threading import Thread
 from threading import Lock
 
+# too avoid running into Not-Find-Display problem
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 # import networkx as nx
 import numpy
