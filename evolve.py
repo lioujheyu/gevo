@@ -50,13 +50,13 @@ class evolution:
     }
 
     class tc:
-        args = []
-        golden = []
         def __init__(self, idx, kernel, bin, verifier):
             self.idx = idx
             self.kernels = kernel
             self.appBinary = bin
             self.verifier = verifier
+            self.args = []
+            self.golden = []
 
         def evaluate(self):
             proc = subprocess.run(['/usr/local/cuda/bin/nvprof',
@@ -213,7 +213,6 @@ class evolution:
         # cut, replace, insert, swap
         operations = ['c', 'r', 'i', 's', 'm']
         while trial < individual.lineSize:
-            trial = trial + 1
             line1 = random.randint(1, individual.lineSize)
             line2 = random.randint(1, individual.lineSize)
             while line1 == line2:
@@ -231,6 +230,7 @@ class evolution:
                 continue
 
             with lock:
+                trial = trial + 1
                 fit = self.evaluate(test_ind)
                 print('m', end='', flush=True)
             if None in fit:
