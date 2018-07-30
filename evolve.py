@@ -360,6 +360,9 @@ class evolution:
         errs = []
         for tc in self.testcase:
             fitness, err = self.execNVprofRetrive(tc)
+            if fitness is None or err is None:
+                return None, None
+
             fits.append(fitness)
             errs.append(err)
 
