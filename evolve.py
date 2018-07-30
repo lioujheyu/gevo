@@ -267,10 +267,12 @@ class evolution:
             fit2 = self.evaluate(child2)
             print('c', end='', flush=True)
 
-        if None in fit1:
+        if None not in fit1:
             ind1 = child1
-        if None in fit2:
+            ind1.fitness.values = fit1
+        if None not in fit2:
             ind2 = child2
+            ind2.fitness.values = fit2
 
         return ind1, ind2
 
