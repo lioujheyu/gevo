@@ -9,6 +9,8 @@ import pathlib
 import sys
 import filecmp
 import io
+import os
+from itertools import cycle
 from threading import Thread
 from threading import Lock
 
@@ -46,15 +48,45 @@ class evolution:
         'valid':0, 'invalid':0, 'infinite':0,
         'maxFit':[], 'avgFit':[], 'minFit':[]
     }
-    def __init__(self, kernel, bin, args="", timeout=30, fitness='time',
+
+    class tc:
+        args = []
+        golden = []
+        def __init__(self, idx, kernel, bin, verifier):
+            self.idx = idx
+            self.kernels = kernel
+            self.appBinary = bin
+            self.verifier = verifier
+
+        def evaluate(self):
+            proc = subprocess.run(['/usr/local/cuda/bin/nvprof',
+                                   '--unified-memory-profiling', 'off',
+                                   '--profile-from-start', 'off',
+                                   '--system-profiling', 'on',
+                                   '--csv',
+                                   '-u', 'us',
+                                   './' + self.appBinary] + self.args,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+            if proc.returncode not in [0, 9, 15]:
+                raise Exception('nvprof error')
+
+            if self.verifier['mode'] != 'file':
+                raise Exception('Not support the mode other than file in testcase evaluation')
+
+            for fname in self.verifier['output']:
+                golden_filename = fname + '.golden' + str(self.idx)
+                os.rename(fname, golden_filename)
+                self.golden.append(golden_filename)
+
+    def __init__(self, kernel, bin, profile, timeout=30, fitness='time',
                  llvm_src_filename='cuda-device-only-kernel.ll',
-                 compare_filename="compare.json",
                  CXPB=0.8, MUPB=0.1):
         self.CXPB = CXPB
         self.MUPB = MUPB
         self.kernels = kernel
         self.appBinary = bin
-        self.appArgs = "" if args is None else args
+        # self.appArgs = "" if args is None else args
         self.timeout = timeout
         self.fitness_function = fitness
 
@@ -65,11 +97,7 @@ class evolution:
             print("File {} does not exist".format(llvm_src_filename))
             exit(1)
 
-        try:
-            self.verifier = json.load(open(compare_filename))
-        except IOError:
-            print("File {} does not exist".format(compare_filename))
-            exit(1)
+        self.verifier = profile['verify']
 
         # tools initialization
         # Minimize both performance and error
@@ -95,11 +123,26 @@ class evolution:
         self.paretof = tools.ParetoFront()
         self.logbook.header = "gen", "evals", "min", "max"
 
-    # def printGen(self, gen):
-    #     print("-- Generation %s --" % gen)
-    #     print("  Max {}".format(self.stats['maxFit'][gen]))
-    #     # print("  Avg %s" % self.stats['avgFit'][gen])
-    #     print("  Min {}".format(self.stats['minFit'][gen]))
+        # Set up testcase
+        arg_array = [[]]
+        n_testcase = 1
+        for i, arg in enumerate(profile['args']):
+            if arg.get('bond', None) is None:
+                arg_array_next = [ e[:] for e in arg_array for _ in range(len(arg['value']))]
+                arg_array = arg_array_next
+
+            for e1, e2 in zip(arg_array, cycle(arg['value'])):
+                e1.append(e2 if type(e2) is str else str(e2))
+
+        self.testcase = []
+        for i in range(len(arg_array)):
+            self.testcase.append( self.tc(i, kernel, bin, profile['verify']) )
+        print("evalute testcase as golden..", end='', flush=True)
+        for i, (tc, arg) in enumerate(zip(self.testcase, arg_array)):
+            tc.args = arg
+            print("{}..".format(i+1), end='', flush=True)
+            tc.evaluate()
+        print("done", flush=True)
 
     def updateSlideFromPlot(self):
         pffits = [ind.fitness.values for ind in self.paretof]
@@ -138,9 +181,9 @@ class evolution:
             allEdits = [ind.edits for ind in self.pop]
             json.dump(allEdits, fp, indent=2)
 
-    def resultCompare(self, stdoutStr):
-        src = stdoutStr if self.verifier['source'] == 'stdout' else self.verifier['source']
-        golden = self.verifier['golden']
+    def resultCompare(self, stdoutStr, testcase):
+        src = self.verifier['output']
+        golden = testcase.golden
 
         err = 0.0
         if self.verifier['mode'] == 'string':
@@ -230,20 +273,16 @@ class evolution:
 
         return ind1, ind2
 
-    def evaluate(self, individual):
-        # link
-        individual.ptx(self.cudaPTX)
-        with open('a.ll', 'w') as f:
-            f.write(individual.srcEnc.decode())
-
+    def execNVprofRetrive(self, testcase):
         proc = subprocess.Popen(['/usr/local/cuda/bin/nvprof',
                                  '--unified-memory-profiling', 'off',
                                  '--profile-from-start', 'off',
                                  '--system-profiling', 'on',
                                  '--csv',
                                  '-u', 'us',
-                                 './' + self.appBinary] + self.appArgs,
+                                 './' + self.appBinary] + testcase.args,
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
         try:
             stdout, stderr = proc.communicate(timeout=self.timeout) # second
             retcode = proc.poll()
@@ -270,7 +309,7 @@ class evolution:
             return None, None
 
         program_output = stdout.decode()
-        cmpResult, err = self.resultCompare(program_output)
+        cmpResult, err = self.resultCompare(program_output, testcase)
         if cmpResult is False:
             print('x', end='', flush=True)
             self.mutStats['invalid'] = self.mutStats['invalid'] + 1
@@ -311,6 +350,23 @@ class evolution:
             else:
                 print("Can not find kernel \"{}\" from nvprof".format(self.kernels), file=sys.stderr)
                 return None, None
+
+    def evaluate(self, individual):
+        # link
+        individual.ptx(self.cudaPTX)
+        with open('a.ll', 'w') as f:
+            f.write(individual.srcEnc.decode())
+
+        fits = []
+        errs = []
+        for tc in self.testcase:
+            fitness, err = self.execNVprofRetrive(tc)
+            fits.append(fitness)
+            errs.append(err)
+
+        max_err = max(errs)
+        avg_fitness = sum(fits)/len(fits)
+        return avg_fitness, max_err
 
     def evolve(self, resumeGen):
         threadPool = []
@@ -436,29 +492,38 @@ class evolution:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Evolve CUDA kernel function")
-    parser.add_argument('-k', '--kernel', type=str, required=True,
-        help="Target kernel function of the given CUDA application. Use comma to separate kernels.")
+    parser.add_argument('-P', '--profile_file', type=str, required=True,
+        help="Specify the profile file that contains all application execution and testing information")
+    # parser.add_argument('-k', '--kernel', type=str,
+    #     help="Target kernel function of the given CUDA application. Use comma to separate kernels.")
     parser.add_argument('-r', '--resume', type=int, default=-1,
         help="Resume the process from genetating the population by reading stage/<RESUME>.json")
     parser.add_argument('-t', '--timeout', type=int, default=30,
         help="The timeout period to evaluate the CUDA application")
     parser.add_argument('-fitf', '--fitness_function', type=str, default='time',
         help="What is the target fitness for the evolution. Default ot execution time. Can be changed to power")
-    parser.add_argument('binary',help="Binary of the CUDA application", nargs='?', default='a.out')
-    parser.add_argument('args',help="arguments for the application binary", nargs=argparse.REMAINDER)
+    # parser.add_argument('binary',help="Binary of the CUDA application", nargs='?', default='a.out')
+    # parser.add_argument('args',help="arguments for the application binary", nargs=argparse.REMAINDER)
     args = parser.parse_args()
 
-    kernel = args.kernel.split(',')
+    try:
+        profile = json.load(open(args.profile_file))
+    except:
+        print(sys.exc_info())
+        exit(-1)
+
     evo = evolution(
-        kernel=kernel,
-        bin=args.binary,
-        args=args.args,
+        kernel=profile['kernels'],
+        bin=profile['binary'],
+        profile=profile,
         timeout=args.timeout,
         fitness=args.fitness_function)
 
-    print("      Target CUDA program: {}".format(args.binary))
-    print("Args for the CUDA program: {}".format(" ".join(args.args)))
-    print("           Target kernels: {}".format(" ".join(kernel)))
+    print("      Target CUDA program: {}".format(profile['binary']))
+    print("Args for the CUDA program:")
+    for tc in evo.testcase:
+        print("\t{}".format(" ".join(tc.args)))
+    print("           Target kernels: {}".format(" ".join(profile['kernels'])))
     print("       Evaluation Timeout: {}".format(args.timeout))
     print("         Fitness function: {}".format(args.fitness_function))
 

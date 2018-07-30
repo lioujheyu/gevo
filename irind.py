@@ -81,10 +81,6 @@ def update_from_edits(idx, ind, resultList):
     resultList[idx] = True
 
 class llvmIRrep():
-    edits = []
-    srcEnc = ""
-    lineSize = 0
-
     def __init__(self, srcEnc, edits=None):
         self.srcEnc = srcEnc
         if edits is None:

@@ -1,0 +1,42 @@
+{
+	"binary": "hotspot",
+	"kernels": ["calculate_temp"],
+	"args": [
+	  {
+		"variability": "list",
+		"value": [512],
+		"desc": "size of grid"
+	  },
+	  {
+		"variability": "list",
+		"value": [1, 2, 3, 5, 7],
+		"desc": "pyramid height"
+	  },
+	  {
+		"variability": "list",
+		"value": [2000, 2000, 3000, 5000, 7000],
+		"bond": [1],
+		"desc": "time"
+	  },
+	  {
+		"variability": "list",
+		"value": ["../../data/hotspot/temp_512"],
+		"desc": "temperature map"
+	  },
+	  {
+		"variability": "list",
+		"value": ["../../data/hotspot/power_512"],
+		"desc": "power map"
+	  },
+	  {
+		"variability": "list",
+		"value": ["output.out"],
+		"desc": "output filename"
+	  }
+	],
+	"verify": {
+	  "mode": "file",
+	  "output": ["output.out"],
+	  "fuzzy": true
+	}
+}
