@@ -49,7 +49,7 @@ class evolution:
         'maxFit':[], 'avgFit':[], 'minFit':[]
     }
 
-    class tc:
+    class _testcase:
         def __init__(self, evolution, idx, kernel, bin, verifier):
             self.idx = idx
             self.kernels = kernel
@@ -60,20 +60,12 @@ class evolution:
             self._evolution = evolution
 
         def evaluate(self):
-            # proc = subprocess.run(['/usr/local/cuda/bin/nvprof',
-            #                        '--unified-memory-profiling', 'off',
-            #                        '--profile-from-start', 'off',
-            #                        '--system-profiling', 'on',
-            #                        '--csv',
-            #                        '-u', 'us',
-            #                        './' + self.appBinary] + self.args,
-            #                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-            # if proc.returncode not in [0, 9, 15]:
-            #     raise Exception('nvprof error')
-
-            # if self.verifier['mode'] != 'file':
-            #     raise Exception('Not support the mode other than file in testcase evaluation')
+            # Since golden has been filled up, passing this testcase into resultcompare
+            # won't compare anything which is exactly what we want.
+            self.fitness = self._evolution.execNVprofRetrive(self)
+            if None in self.fitness:
+                print(self.args)
+                raise Exception("Original binary execution error")
 
             for fname in self.verifier['output']:
                 golden_filename = fname + '.golden' + str(self.idx)
@@ -126,7 +118,6 @@ class evolution:
 
         # Set up testcase
         arg_array = [[]]
-        n_testcase = 1
         for i, arg in enumerate(profile['args']):
             if arg.get('bond', None) is None:
                 arg_array_next = [ e[:] for e in arg_array for _ in range(len(arg['value']))]
@@ -137,13 +128,18 @@ class evolution:
 
         self.testcase = []
         for i in range(len(arg_array)):
-            self.testcase.append( self.tc(self, i, kernel, bin, profile['verify']) )
+            self.testcase.append( self._testcase(self, i, kernel, bin, profile['verify']) )
         print("evalute testcase as golden..", end='', flush=True)
         for i, (tc, arg) in enumerate(zip(self.testcase, arg_array)):
             tc.args = arg
             print("{}..".format(i+1), end='', flush=True)
             tc.evaluate()
         print("done", flush=True)
+
+        fits = [ tc.fitness[0] for tc in self.testcase]
+        errs = [ tc.fitness[1] for tc in self.testcase]
+        self.origin = creator.Individual(self.initSrcEnc)
+        self.origin.fitness.values = (sum(fits)/len(fits), max(errs))
 
     def updateSlideFromPlot(self):
         pffits = [ind.fitness.values for ind in self.paretof]
@@ -158,6 +154,8 @@ class evolution:
                     marker='*', label="dominated")
         plt.scatter([pffit[0]/1000 for pffit in pffits], [pffit[1]*100 for pffit in pffits],
                     marker='o', c='red', label="pareto front")
+        plt.scatter(self.origin.fitness.values[0]/1000, self.origin.fitness.values[1]*100,
+                    marker='x', c='green', label="origin")
         plt.legend()
         buf = io.BytesIO()
         plt.savefig(buf, format='png')
