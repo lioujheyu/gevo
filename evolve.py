@@ -50,29 +50,30 @@ class evolution:
     }
 
     class tc:
-        def __init__(self, idx, kernel, bin, verifier):
+        def __init__(self, evolution, idx, kernel, bin, verifier):
             self.idx = idx
             self.kernels = kernel
             self.appBinary = bin
             self.verifier = verifier
             self.args = []
             self.golden = []
+            self._evolution = evolution
 
         def evaluate(self):
-            proc = subprocess.run(['/usr/local/cuda/bin/nvprof',
-                                   '--unified-memory-profiling', 'off',
-                                   '--profile-from-start', 'off',
-                                   '--system-profiling', 'on',
-                                   '--csv',
-                                   '-u', 'us',
-                                   './' + self.appBinary] + self.args,
-                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            # proc = subprocess.run(['/usr/local/cuda/bin/nvprof',
+            #                        '--unified-memory-profiling', 'off',
+            #                        '--profile-from-start', 'off',
+            #                        '--system-profiling', 'on',
+            #                        '--csv',
+            #                        '-u', 'us',
+            #                        './' + self.appBinary] + self.args,
+            #                       stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-            if proc.returncode not in [0, 9, 15]:
-                raise Exception('nvprof error')
+            # if proc.returncode not in [0, 9, 15]:
+            #     raise Exception('nvprof error')
 
-            if self.verifier['mode'] != 'file':
-                raise Exception('Not support the mode other than file in testcase evaluation')
+            # if self.verifier['mode'] != 'file':
+            #     raise Exception('Not support the mode other than file in testcase evaluation')
 
             for fname in self.verifier['output']:
                 golden_filename = fname + '.golden' + str(self.idx)
@@ -136,7 +137,7 @@ class evolution:
 
         self.testcase = []
         for i in range(len(arg_array)):
-            self.testcase.append( self.tc(i, kernel, bin, profile['verify']) )
+            self.testcase.append( self.tc(self, i, kernel, bin, profile['verify']) )
         print("evalute testcase as golden..", end='', flush=True)
         for i, (tc, arg) in enumerate(zip(self.testcase, arg_array)):
             tc.args = arg
