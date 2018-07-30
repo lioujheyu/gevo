@@ -167,6 +167,7 @@ class evolution:
         pic = slide.shapes.add_picture(buf, left, top)
         buf.close()
         self.presentation.save('progress.pptx')
+        plt.clf()
 
     def writeStage(self):
         pathlib.Path('stage').mkdir(exist_ok=True)
@@ -444,7 +445,9 @@ class evolution:
             # Clone the selected individuals
             offspring = list(map(self.toolbox.clone, offspring))
 
-            for i, ind in enumerate(self.paretof):
+            # for i, ind in enumerate(self.paretof):
+            paretofGen = tools.sortNondominated(self.pop, popSize, first_front_only=True)
+            for i, ind in enumerate(paretofGen[0]):
                 with open("g{}_pf{}.ll".format(self.generation, i), 'w') as f:
                     f.write(ind.srcEnc.decode())
                 with open("g{}_pf{}.edit".format(self.generation, i), 'w') as f:
