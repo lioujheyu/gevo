@@ -14,6 +14,9 @@ from itertools import cycle
 from threading import Thread
 from threading import Lock
 
+# too avoid running into Not-Find-Display problem
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 # import networkx as nx
 import numpy
@@ -144,23 +147,26 @@ class evolution:
     def updateSlideFromPlot(self):
         pffits = [ind.fitness.values for ind in self.paretof]
         fits = [ind.fitness.values for ind in self.pop if ind not in pffits]
+        plt.gcf().subplots_adjust(bottom=0.15)
         plt.title("Program variant performance - Generation {}".format(self.generation))
-        plt.xlabel("Runtime")
-        plt.ylabel("Error")
-        plt.scatter([fit[0] for fit in fits], [fit[1] for fit in fits],
+        plt.xlabel("Runtime(ms)")
+        plt.ylabel("Error(%)")
+        plt.ylim(ymin=-0.1, ymax=1.0)
+        plt.xticks(rotation=45)
+        plt.scatter([fit[0]/1000 for fit in fits], [fit[1]*100 for fit in fits],
                     marker='*', label="dominated")
-        plt.scatter([pffit[0] for pffit in pffits], [pffit[1] for pffit in pffits],
+        plt.scatter([pffit[0]/1000 for pffit in pffits], [pffit[1]*100 for pffit in pffits],
                     marker='o', c='red', label="pareto front")
+        plt.legend()
         buf = io.BytesIO()
         plt.savefig(buf, format='png')
         buf.seek(0)
 
         slide = self.presentation.slides.add_slide(self.presentation.slide_layouts[6])
-        # left = (self.presentation.slide_width - pptx.util.px(640))/2
-        # top = (self.presentation.slide_height - pptx.util.px(480))/2
         left = top = pptx.util.Inches(1)
         pic = slide.shapes.add_picture(buf, left, top)
         buf.close()
+        self.presentation.save('progress.pptx')
 
     def writeStage(self):
         pathlib.Path('stage').mkdir(exist_ok=True)
@@ -364,6 +370,7 @@ class evolution:
     def evolve(self, resumeGen):
         threadPool = []
         if resumeGen == -1:
+            # PopSize must be a multiple by 4 for SelTournamentDOD to function properly
             popSize = 100
             print("Initialize the population. Size {}".format(popSize))
             self.pop = self.toolbox.population(n=popSize)
@@ -386,8 +393,8 @@ class evolution:
                 print(sys.exc_info())
                 exit(1)
 
-            # popSize = len(allEdits)
-            popSize = 10
+            popSize = len(allEdits)
+            # popSize = 10
             print("Resume the population from {}. Size {}".format(stageFileName, popSize))
             self.pop = self.toolbox.population(n=popSize)
             self.generation = resumeGen
@@ -433,10 +440,12 @@ class evolution:
             offspring = tools.selTournamentDCD(self.pop, popSize)
             # Clone the selected individuals
             offspring = list(map(self.toolbox.clone, offspring))
-            with open("best-{}.ll".format(self.generation), 'w') as f:
-                f.write(self.pop[0].srcEnc.decode())
-            with open("best-{}.edit".format(self.generation), 'w') as f:
-                print(self.pop[0].edits, file=f)
+
+            for i, ind in enumerate(self.paretof):
+                with open("g{}_pf{}.ll".format(self.generation, i), 'w') as f:
+                    f.write(ind.srcEnc.decode())
+                with open("g{}_pf{}.edit".format(self.generation, i), 'w') as f:
+                    print(ind.edits, file=f)
 
             self.generation = self.generation + 1
 
