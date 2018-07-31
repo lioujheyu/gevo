@@ -117,6 +117,8 @@ class evolution:
         self.logbook.header = "gen", "evals", "min", "max"
 
         # Set up testcase
+        self.origin = creator.Individual(self.initSrcEnc)
+        self.origin.ptx(self.cudaPTX)
         arg_array = [[]]
         for i, arg in enumerate(profile['args']):
             if arg.get('bond', None) is None:
@@ -138,7 +140,6 @@ class evolution:
 
         fits = [ tc.fitness[0] for tc in self.testcase]
         errs = [ tc.fitness[1] for tc in self.testcase]
-        self.origin = creator.Individual(self.initSrcEnc)
         self.origin.fitness.values = (sum(fits)/len(fits), max(errs))
 
     def updateSlideFromPlot(self):
