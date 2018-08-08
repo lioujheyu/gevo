@@ -47,17 +47,29 @@ tuple<int, string, double, double> file(string src, string golden)
         // Skip the string that is float point number
         try {
             sval = stod(sstrvec[i]);
+        }
+        catch (invalid_argument const &e) {
+            continue;
+        }
+        catch (out_of_range const &e) {
+            sval = 0; // this will make error rate equals to 1
+        }
+
+        try {
             gval = stod(gstrvec[i]);
         }
-        catch (std::invalid_argument const &e) {
+        catch (invalid_argument const &e) {
             continue;
+        }
+        catch (out_of_range const &e) {
+            throw; // golden cannot be out_of_range
         }
 
         // Check for Not a number
         if (isnan(sval)==true or isnan(gval)==true)
             return make_tuple(1, "Not a Number detected!", 0.0, 0.0);
 
-        float err = fabs(sval - gval) / ((gval == 0)? 1 : gval);
+        double err = fabs(sval - gval) / ((gval == 0)? 1 : gval);
         if (err > maxErr) {
             maxErr = (err > maxErr)? err : maxErr;
             maxErrMsg = "s: " + to_string(sval) + " <<>> g: " + to_string(gval);
