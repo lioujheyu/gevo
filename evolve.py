@@ -124,9 +124,15 @@ class evolution:
             if arg.get('bond', None) is None:
                 arg_array_next = [ e[:] for e in arg_array for _ in range(len(arg['value']))]
                 arg_array = arg_array_next
+                for e1, e2 in zip(arg_array, cycle(arg['value'])):
+                    e1.append(e2)
+            else:
+                for e in arg_array:
+                    bonded_arg = arg['bond'][0]
+                    bonded_idx = profile['args'][bonded_arg]['value'].index(e[bonded_arg])
+                    e.append(arg['value'][bonded_idx])
 
-            for e1, e2 in zip(arg_array, cycle(arg['value'])):
-                e1.append(e2 if type(e2) is str else str(e2))
+        arg_array = [ [str(e) for e in args ] for args in arg_array ]
 
         self.testcase = []
         for i in range(len(arg_array)):
