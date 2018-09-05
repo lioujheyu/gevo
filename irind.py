@@ -25,6 +25,8 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
         return -2, srcEncIn, None
     if proc.stderr.decode().find('mismatch') != -1:
         return -3, srcEncIn, None
+    if proc.stderr.decode().find('no use') != -1:
+        return -4, srcEncIn, None
 
     mutateSrc = proc.stdout
     # read the uniqueID of the processed instructions

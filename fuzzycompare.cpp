@@ -37,7 +37,7 @@ tuple<int, string, double, double> file(string src, string golden)
         gstrvec.push_back(str);
 
     if (sstrvec.size() != gstrvec.size())
-        return make_tuple(-2, "number of string mismatched.", 0.0, 0.0);
+        return make_tuple(2, "number of string mismatched.", 0.0, 0.0);
 
     double sval, gval;
     double maxErr=0.0, avgErr=0.0;
