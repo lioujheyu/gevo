@@ -43,6 +43,8 @@ class program(evolve.evolution):
             print("File {} does not exist".format(llvm_src_filename))
             exit(1)
 
+        self.verifier = profile['verify']
+
         creator.create("FitnessMin", base.Fitness, weights=(-1.0, -1.0))
         creator.create("Individual", irind.llvmIRrep, fitness=creator.FitnessMin)
         self.toolbox = base.Toolbox()
