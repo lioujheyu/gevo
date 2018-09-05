@@ -152,4 +152,5 @@ class llvmIRrep():
 
         if proc.returncode is not 0:
             print(proc.stderr)
+            print(self.edits)
             raise Exception('llc error')
