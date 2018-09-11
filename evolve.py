@@ -361,7 +361,11 @@ class evolution:
 
     def evaluate(self, individual):
         # link
-        individual.ptx(self.cudaPTX)
+        try:
+            individual.ptx(self.cudaPTX)
+        except:
+            return None, None
+
         with open('a.ll', 'w') as f:
             f.write(individual.srcEnc.decode())
 
