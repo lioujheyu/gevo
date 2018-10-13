@@ -30,21 +30,26 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
 
     mutateSrc = proc.stdout
     # read the uniqueID of the processed instructions
+    editUID = []
     for line in proc.stderr.decode().split('\n'):
-        result = re.search('\w+ (U[0-9.irsm]+)(,(U[0-9.irsm]+))?', line)
-        if result != None:
-            break
-    if result == None:
-        print(proc.stderr.decode(), file=sys.stderr)
-        with open('error.ll', 'w') as f:
-            f.write(proc.stdout.decode())
-        print(*mut_command)
-        raise Exception("Could not understand the result from llvm-mutate")
+        if len(line) == 0:
+            continue
+        result = re.search('(\w+) (U[0-9.irsmOP]+)(,([UAC][0-9.irsm]+))?', line)
 
-    if op == 'c':
-        editUID = ('-'+op, result.group(1))
-    else:
-        editUID = ('-'+op, result.group(1) + ',' + result.group(3))
+        if result == None:
+            print(proc.stderr.decode(), file=sys.stderr)
+            with open('error.ll', 'w') as f:
+                f.write(proc.stdout.decode())
+            print(*mut_command)
+            raise Exception("Could not understand the result from llvm-mutate")
+
+        if result.group(1) == "opreplaced":
+            editUID.append(('-p', result.group(2) + ',' + result.group(4)))
+        else:
+            if op == 'c':
+                editUID = [('-'+op, result.group(2))] + editUID
+            else:
+                editUID = [('-'+op, result.group(2) + ',' + result.group(4))] + editUID
 
     if proc.stderr.decode().find('no use') != -1:
         return 1, mutateSrc, editUID
@@ -52,13 +57,14 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
 
 def rearrage(cmd):
     cmdlist = list(cmd)
-    c_cmd = [c for c in cmdlist if c[0] == '-c']
-    r_cmd = [c for c in cmdlist if c[0] == '-r']
-    i_cmd = [c for c in cmdlist if c[0] == '-i']
-    m_cmd = [c for c in cmdlist if c[0] == '-m']
-    s_cmd = [c for c in cmdlist if c[0] == '-s']
+    c_cmd  = [c for c in cmdlist if c[0][0] == '-c']
+    r_cmd  = [c for c in cmdlist if c[0][0] == '-r']
+    i_cmd  = [c for c in cmdlist if c[0][0] == '-i']
+    m_cmd  = [c for c in cmdlist if c[0][0] == '-m']
+    s_cmd  = [c for c in cmdlist if c[0][0] == '-s']
+    op_cmd = [c for c in cmdlist if c[0][0] == '-p']
 
-    cmdlist = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd
+    cmdlist = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd + op_cmd
     return cmdlist
 
 def diff(edits1, edits2):
@@ -71,7 +77,7 @@ def diff(edits1, edits2):
 
 def update_from_edits(idx, ind, resultList):
     proc = subprocess.run(
-        ['llvm-mutate'] + [arg for edit in ind.edits for arg in edit],
+        ['llvm-mutate'] + [arg for editG in ind.edits for edit in editG for arg in edit],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         input=ind.srcEnc
@@ -113,7 +119,7 @@ class llvmIRrep():
 
     def update_from_edits(self, sweepEdits=False):
         if sweepEdits == False:
-            proc = subprocess.run(['llvm-mutate'] + [arg for edit in self.edits for arg in edit],
+            proc = subprocess.run(['llvm-mutate'] + [arg for editG in self.edits for edit in editG for arg in edit],
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE,
                                   input=self.srcEnc)
@@ -121,31 +127,33 @@ class llvmIRrep():
                 return False
             mutateSrcEn = proc.stdout
         else:
-            validEdits = []
-            mutateSrcEn = self.srcEnc
-            for edit in self.edits:
-                rc, mutateSrcEn, _ = llvmMutateWrap(
-                                        mutateSrcEn,
-                                        edit[0][1],
-                                        edit[1].split(',')[0],
-                                        edit[1].split(',')[1] if ',' in edit[1] else None)
-                if rc < 0:
-                    continue
-                validEdits.append(edit)
+            raise Exception('Not fixed yet')
+            # validEdits = []
+            # mutateSrcEn = self.srcEnc
+            # for edit in self.edits:
+            #     rc, mutateSrcEn, _ = llvmMutateWrap(
+            #                             mutateSrcEn,
+            #                             edit[0][1],
+            #                             edit[1].split(',')[0],
+            #                             edit[1].split(',')[1] if ',' in edit[1] else None)
+            #     if rc < 0:
+            #         continue
+            #     validEdits.append(edit)
 
-            self.edits = validEdits
+            # self.edits = validEdits
 
         self.update(mutateSrcEn)
         return True
 
     def rearrage(self):
-        c_cmd = [c for c in self.edits if c[0] == '-c']
-        r_cmd = [c for c in self.edits if c[0] == '-r']
-        i_cmd = [c for c in self.edits if c[0] == '-i']
-        m_cmd = [c for c in self.edits if c[0] == '-m']
-        s_cmd = [c for c in self.edits if c[0] == '-s']
+        c_cmd  = [c for c in self.edits if c[0][0] == '-c']
+        r_cmd  = [c for c in self.edits if c[0][0] == '-r']
+        i_cmd  = [c for c in self.edits if c[0][0] == '-i']
+        m_cmd  = [c for c in self.edits if c[0][0] == '-m']
+        s_cmd  = [c for c in self.edits if c[0][0] == '-s']
+        op_cmd = [c for c in self.edits if c[0][0] == '-p']
 
-        self.edits = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd
+        self.edits = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd + op_cmd
 
     def ptx(self, outf):
         proc = subprocess.run(['llc', '-o', outf],

@@ -216,8 +216,8 @@ class evolution:
 
     def mutLLVM(self, individual):
         trial = 0
-        # cut, replace, insert, swap
-        operations = ['c', 'r', 'i', 's', 'm']
+        # cut, replace, insert, swap, move, operand replace
+        operations = ['c', 'r', 'i', 's', 'm', 'p']
         while trial < individual.lineSize:
             line1 = random.randint(1, individual.lineSize)
             line2 = random.randint(1, individual.lineSize)
@@ -225,7 +225,10 @@ class evolution:
                 line2 = random.randint(1, individual.lineSize)
 
             op = random.choice(operations)
-            rc, mutateSrc, editUID = llvmMutateWrap(individual.srcEnc, op, str(line1), str(line2))
+            if op == 'p':
+                rc, mutateSrc, editUID = llvmMutateWrap(individual.srcEnc, op, str('Rand'), str('Rand'))
+            else:
+                rc, mutateSrc, editUID = llvmMutateWrap(individual.srcEnc, op, str(line1), str(line2))
             if rc < 0:
                 continue
 
@@ -417,7 +420,9 @@ class evolution:
 
             resultList = [False] * popSize
             for i, (edits, ind) in enumerate(zip(allEdits, self.pop)):
-                editsList = [(e[0], e[1]) for e in edits]
+                editsList = []
+                for editG in edits:
+                    editsList.append([(e[0], e[1]) for e in editG])
                 ind.edits = editsList
                 threadPool.append(
                     Thread(target=update_from_edits, args=(i, ind, resultList))
