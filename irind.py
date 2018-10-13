@@ -104,7 +104,7 @@ class llvmIRrep():
         return len(self.edits)
 
     def __eq__(self, other):
-        return self.edits == other.edits
+        return self.__key() == other.__key()
 
     def __hash__(self):
         return hash(self.__key())
