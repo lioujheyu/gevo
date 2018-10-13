@@ -413,7 +413,6 @@ class evolution:
                 exit(1)
 
             popSize = len(allEdits)
-            # popSize = 10
             print("Resume the population from {}. Size {}".format(stageFileName, popSize))
             self.pop = self.toolbox.population(n=popSize)
             self.generation = resumeGen
@@ -500,7 +499,7 @@ class evolution:
             for ind, fit in zip(invalid_ind, fitnesses):
                 ind.fitness.values = fit
 
-            self.pop = self.toolbox.select(self.pop + offspring, popSize)
+            self.pop = self.toolbox.select(list(set(self.pop + offspring)), popSize)
             record = self.stats.compile(self.pop)
             self.logbook.record(gen=self.generation, evals=popSize, **record)
             self.paretof.update(self.pop)
