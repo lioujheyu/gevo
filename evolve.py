@@ -150,7 +150,7 @@ class evolution:
 
     def updateSlideFromPlot(self):
         pffits = [ind.fitness.values for ind in self.paretof]
-        fits = [ind.fitness.values for ind in self.pop if ind not in pffits]
+        fits = [ind.fitness.values for ind in self.pop if ind.fitness.values not in pffits]
         plt.gcf().subplots_adjust(bottom=0.15)
         plt.title("Program variant performance - Generation {}".format(self.generation))
         plt.xlabel("Runtime(ms)")
