@@ -449,6 +449,7 @@ class evolution:
         print("")
         print(self.logbook.stream)
         self.updateSlideFromPlot()
+        minExecTime = record["min"][0]
 
         # pffits = [ind.fitness.values for ind in self.paretof]
         # fits = [ind.fitness.values for ind in self.pop if ind not in pffits]
@@ -456,6 +457,8 @@ class evolution:
         # plt.scatter([pffits[0] for fit in fits], [pffits[1] for fit in fits], marker='o', c=red)
         # plt.savefig(str(self.generation) + '.png')
 
+        rapid_mutation = False
+        no_fitness_change = -5 # give more generations at start before rapid mutation
         while True:
             offspring = tools.selTournamentDCD(self.pop, popSize)
             # Clone the selected individuals
@@ -470,6 +473,14 @@ class evolution:
                     print(ind.edits, file=f)
 
             self.generation = self.generation + 1
+
+            if rapid_mutation:
+                print("Rapid mutation! Stop crossover and increase mutation rate.")
+                self.CXPB = 0.0
+                self.MUPB = 1.0
+            else:
+                self.CXPB = 0.8
+                self.MUPB = 0.1
 
             threadPool.clear()
             for child1, child2 in zip(offspring[::2], offspring[1::2]):
@@ -499,7 +510,7 @@ class evolution:
             for ind, fit in zip(invalid_ind, fitnesses):
                 ind.fitness.values = fit
 
-            self.pop = self.toolbox.select(list(set(self.pop + offspring)), popSize)
+            self.pop = self.toolbox.select(self.pop + offspring, popSize)
             record = self.stats.compile(self.pop)
             self.logbook.record(gen=self.generation, evals=popSize, **record)
             self.paretof.update(self.pop)
@@ -508,6 +519,20 @@ class evolution:
             print(self.logbook.stream)
             self.updateSlideFromPlot()
             self.writeStage()
+
+            if rapid_mutation:
+                rapid_mutation = False
+                minExecTime = record['min'][0]
+                no_fitness_change = 0
+
+            if minExecTime <= record['min'][0]:
+                no_fitness_change = no_fitness_change + 1
+                if no_fitness_change == 10:
+                    rapid_mutation = True
+            else:
+                minExecTime = record['min'][0]
+                if no_fitness_change >= 0:
+                    no_fitness_change = 0
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Evolve CUDA kernel function")
