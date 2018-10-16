@@ -43,13 +43,20 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
             print(*mut_command)
             raise Exception("Could not understand the result from llvm-mutate")
 
-        if result.group(1) == "opreplaced":
-            editUID.append(('-p', result.group(2) + ',' + result.group(4)))
-        else:
-            if op == 'c':
-                editUID = [('-'+op, result.group(2))] + editUID
+        try:
+            if result.group(1) == "opreplaced":
+                editUID.append(('-p', result.group(2) + ',' + result.group(4)))
             else:
-                editUID = [('-'+op, result.group(2) + ',' + result.group(4))] + editUID
+                if op == 'c':
+                    editUID = [('-'+op, result.group(2))] + editUID
+                else:
+                    editUID = [('-'+op, result.group(2) + ',' + result.group(4))] + editUID
+        except TypeError:
+            print(proc.stderr.decode(), file=sys.stderr)
+            with open('error.ll', 'w') as f:
+                f.write(proc.stdout.decode())
+            print(*mut_command)
+            raise Exception("Could not understand the result from llvm-mutate")
 
     if proc.stderr.decode().find('no use') != -1:
         return 1, mutateSrc, editUID
@@ -77,7 +84,7 @@ def diff(edits1, edits2):
 
 def update_from_edits(idx, ind, resultList):
     proc = subprocess.run(
-        ['llvm-mutate'] + [arg for editG in ind.edits for edit in editG for arg in edit],
+        ['llvm-mutate'] + ind.serialize_edits(),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         input=ind.srcEnc
@@ -109,6 +116,11 @@ class llvmIRrep():
     def __hash__(self):
         return hash(self.__key())
 
+    def serialize_edits(self):
+        if self.edits is None:
+            return None
+        return [arg for editG in self.edits for edit in editG for arg in edit]
+
     def update_linesize(self):
         try:
             readline_proc = subprocess.run(['llvm-mutate', '-I'],
@@ -128,7 +140,7 @@ class llvmIRrep():
 
     def update_from_edits(self, sweepEdits=False):
         if sweepEdits == False:
-            proc = subprocess.run(['llvm-mutate'] + [arg for editG in self.edits for edit in editG for arg in edit],
+            proc = subprocess.run(['llvm-mutate'] + self.serialize_edits(),
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE,
                                   input=self.srcEnc)
