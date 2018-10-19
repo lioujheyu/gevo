@@ -20,6 +20,10 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
                           stderr=subprocess.PIPE,
                           input=srcEncIn)
     if proc.returncode != 0:
+        print(proc.stderr.decode(), file=sys.stderr)
+        with open('error.ll', 'w') as f:
+            f.write(proc.stdout.decode())
+        print(*mut_command)
         return -1, srcEncIn, None
     if proc.stderr.decode().find('failed') != -1:
         return -2, srcEncIn, None
