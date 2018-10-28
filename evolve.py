@@ -252,37 +252,45 @@ class evolution:
             individual.fitness.values = fit
             return individual,
 
-        print("Cannot get mutant to be compiled in {} trials".format(individual.lineSize))
+        print("Cannot get mutant to survive in {} trials".format(individual.lineSize))
         return individual,
 
     def cxOnePointLLVM(self, ind1, ind2):
-        shuffleEdits = ind1.edits + ind2.edits
-        random.shuffle(shuffleEdits)
-        point = random.randint(1, len(shuffleEdits)-1)
-        cmd1 = shuffleEdits[:point]
-        cmd2 = shuffleEdits[point:]
-        cmd1 = irind.rearrage(cmd1)
-        cmd2 = irind.rearrage(cmd2)
+        trial = 0
+        while trial < len(ind1) + len(ind2):
+            shuffleEdits = ind1.edits + ind2.edits
+            random.shuffle(shuffleEdits)
+            point = random.randint(1, len(shuffleEdits)-1)
+            cmd1 = shuffleEdits[:point]
+            cmd2 = shuffleEdits[point:]
+            cmd1 = irind.rearrage(cmd1)
+            cmd2 = irind.rearrage(cmd2)
 
-        child1 = creator.Individual(self.initSrcEnc)
-        child1.edits = list(cmd1)
-        child1.update_from_edits(sweepEdits=False)
-        child2 = creator.Individual(self.initSrcEnc)
-        child2.edits = list(cmd2)
-        child2.update_from_edits(sweepEdits=False)
+            child1 = creator.Individual(self.initSrcEnc)
+            child1.edits = list(cmd1)
+            child1.update_from_edits(sweepEdits=False)
+            child2 = creator.Individual(self.initSrcEnc)
+            child2.edits = list(cmd2)
+            child2.update_from_edits(sweepEdits=False)
 
-        with lock:
-            fit1 = self.evaluate(child1)
-            fit2 = self.evaluate(child2)
-            print('c', end='', flush=True)
+            with lock:
+                fit1 = self.evaluate(child1)
+                fit2 = self.evaluate(child2)
+                print('c', end='', flush=True)
 
-        if None not in fit1:
-            ind1 = child1
-            ind1.fitness.values = fit1
-        if None not in fit2:
-            ind2 = child2
-            ind2.fitness.values = fit2
+            trial = trial + 1
+            if None in fit1 and None in fit2:
+                continue
 
+            if None not in fit1:
+                ind1 = child1
+                ind1.fitness.values = fit1
+            if None not in fit2:
+                ind2 = child2
+                ind2.fitness.values = fit2
+            return ind1, ind2
+
+        print("Cannot get crossover to survive in {} trials".format(len(ind1) + len(ind2)))
         return ind1, ind2
 
     def execNVprofRetrive(self, testcase):
@@ -461,7 +469,7 @@ class evolution:
         rapid_mutation = False
         no_fitness_change = -5 # give more generations at start before rapid mutation
         while True:
-            offspring = tools.selTournamentDCD(self.pop, popSize)
+            offspring = tools.selTournamentDCD(self.pop, popSize-4)
             # Clone the selected individuals
             offspring = list(map(self.toolbox.clone, offspring))
 
@@ -504,14 +512,9 @@ class evolution:
             for thread in threadPool:
                 thread.join()
 
-
-            # Evaluate the individuals with an invalid fitness
-            invalid_ind = [ind for ind in offspring if not ind.fitness.valid]
-            fitnesses = [self.evaluate(ind) for ind in invalid_ind]
-            for ind, fit in zip(invalid_ind, fitnesses):
-                ind.fitness.values = fit
-
-            self.pop = self.toolbox.select(self.pop + offspring, popSize)
+            # self.pop = self.toolbox.select(self.pop + offspring, popSize)
+            elite = self.toolbox.select(self.pop, 4)
+            self.pop = self.toolbox.select(elite + offspring, popSize)
             record = self.stats.compile(self.pop)
             self.logbook.record(gen=self.generation, evals=popSize, **record)
             self.paretof.update(self.pop)
