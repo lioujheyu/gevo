@@ -148,6 +148,7 @@ class evolution:
         fits = [ tc.fitness[0] for tc in self.testcase]
         errs = [ tc.fitness[1] for tc in self.testcase]
         self.origin.fitness.values = (sum(fits)/len(fits), max(errs))
+        print("Fitness of the original program: {}".format(self.origin.fitness.values))
 
     def updateSlideFromPlot(self):
         pffits = [ind.fitness.values for ind in self.paretof]
