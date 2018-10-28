@@ -72,7 +72,7 @@ class evolution:
                 os.rename(fname, golden_filename)
                 self.golden.append(golden_filename)
 
-    def __init__(self, kernel, bin, profile, timeout=30, fitness='time',
+    def __init__(self, kernel, bin, profile, timeout=30, fitness='time', popsize=128,
                  llvm_src_filename='cuda-device-only-kernel.ll',
                  CXPB=0.8, MUPB=0.1):
         self.CXPB = CXPB
@@ -82,6 +82,7 @@ class evolution:
         # self.appArgs = "" if args is None else args
         self.timeout = timeout
         self.fitness_function = fitness
+        self.popsize = popsize
 
         try:
             with open(llvm_src_filename, 'r') as f:
@@ -390,7 +391,7 @@ class evolution:
         threadPool = []
         if resumeGen == -1:
             # PopSize must be a multiple by 4 for SelTournamentDOD to function properly
-            popSize = 100
+            popSize = self.popsize
             print("Initialize the population. Size {}".format(popSize))
             self.pop = self.toolbox.population(n=popSize)
 
@@ -542,6 +543,8 @@ if __name__ == '__main__':
     #     help="Target kernel function of the given CUDA application. Use comma to separate kernels.")
     parser.add_argument('-r', '--resume', type=int, default=-1,
         help="Resume the process from genetating the population by reading stage/<RESUME>.json")
+    parser.add_argument('--pop_size', type=int, default=128,
+        help="Number of individual in the population. Default is 128.")
     parser.add_argument('-t', '--timeout', type=int, default=30,
         help="The timeout period to evaluate the CUDA application")
     parser.add_argument('-fitf', '--fitness_function', type=str, default='time',
@@ -561,7 +564,8 @@ if __name__ == '__main__':
         bin=profile['binary'],
         profile=profile,
         timeout=args.timeout,
-        fitness=args.fitness_function)
+        fitness=args.fitness_function,
+        popsize=args.pop_size)
 
     print("      Target CUDA program: {}".format(profile['binary']))
     print("Args for the CUDA program:")
