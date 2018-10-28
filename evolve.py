@@ -38,6 +38,7 @@ class evolution:
     # Parameters
     log = open('debug_log', 'w')
     cudaPTX = 'a.ptx'
+    editFitMap = {}
 
     # Content
     pop = []
@@ -148,6 +149,7 @@ class evolution:
         fits = [ tc.fitness[0] for tc in self.testcase]
         errs = [ tc.fitness[1] for tc in self.testcase]
         self.origin.fitness.values = (sum(fits)/len(fits), max(errs))
+        self.editFitMap[None] = self.origin.fitness.values
         print("Fitness of the original program: {}".format(self.origin.fitness.values))
 
     def updateSlideFromPlot(self):
@@ -247,9 +249,7 @@ class evolution:
             if None in fit:
                 continue
 
-            individual.update(srcEnc=test_ind.srcEnc)
-            individual.edits.append(editUID)
-            individual.rearrage()
+            individual = test_ind
             individual.fitness.values = fit
             return individual,
 
@@ -373,6 +373,12 @@ class evolution:
                 return None, None
 
     def evaluate(self, individual):
+        # first to check whether we can find the same entry in the editFitmap
+        editkey = individual.__hash__()
+        if editkey in self.editFitMap:
+            print('r', end='', flush=True)
+            return editFitMap[editkey]
+
         # link
         try:
             individual.ptx(self.cudaPTX)
@@ -394,6 +400,8 @@ class evolution:
 
         max_err = max(errs)
         avg_fitness = sum(fits)/len(fits)
+        # record the edits and the corresponding fitness in the map
+        self.editFitMap[editkey] = (avg_fitness, max_err)
         return avg_fitness, max_err
 
     def evolve(self, resumeGen):

@@ -68,12 +68,12 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
 
 def rearrage(cmd):
     cmdlist = list(cmd)
-    c_cmd  = [c for c in cmdlist if c[0][0] == '-c']
-    r_cmd  = [c for c in cmdlist if c[0][0] == '-r']
-    i_cmd  = [c for c in cmdlist if c[0][0] == '-i']
-    m_cmd  = [c for c in cmdlist if c[0][0] == '-m']
-    s_cmd  = [c for c in cmdlist if c[0][0] == '-s']
-    op_cmd = [c for c in cmdlist if c[0][0] == '-p']
+    c_cmd  = [c for c in cmdlist if c[0][0] == '-c'].sort()
+    r_cmd  = [c for c in cmdlist if c[0][0] == '-r'].sort()
+    i_cmd  = [c for c in cmdlist if c[0][0] == '-i'].sort()
+    m_cmd  = [c for c in cmdlist if c[0][0] == '-m'].sort()
+    s_cmd  = [c for c in cmdlist if c[0][0] == '-s'].sort()
+    op_cmd = [c for c in cmdlist if c[0][0] == '-p'].sort()
 
     cmdlist = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd + op_cmd
     return cmdlist
@@ -171,12 +171,12 @@ class llvmIRrep():
         return True
 
     def rearrage(self):
-        c_cmd  = [c for c in self.edits if c[0][0] == '-c']
-        r_cmd  = [c for c in self.edits if c[0][0] == '-r']
-        i_cmd  = [c for c in self.edits if c[0][0] == '-i']
-        m_cmd  = [c for c in self.edits if c[0][0] == '-m']
-        s_cmd  = [c for c in self.edits if c[0][0] == '-s']
-        op_cmd = [c for c in self.edits if c[0][0] == '-p']
+        c_cmd  = [c for c in self.edits if c[0][0] == '-c'].sort()
+        r_cmd  = [c for c in self.edits if c[0][0] == '-r'].sort()
+        i_cmd  = [c for c in self.edits if c[0][0] == '-i'].sort()
+        m_cmd  = [c for c in self.edits if c[0][0] == '-m'].sort()
+        s_cmd  = [c for c in self.edits if c[0][0] == '-s'].sort()
+        op_cmd = [c for c in self.edits if c[0][0] == '-p'].sort()
 
         self.edits = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd + op_cmd
 
