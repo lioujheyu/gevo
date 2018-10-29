@@ -561,6 +561,10 @@ if __name__ == '__main__':
         help="The timeout period to evaluate the CUDA application")
     parser.add_argument('-fitf', '--fitness_function', type=str, default='time',
         help="What is the target fitness for the evolution. Default ot execution time. Can be changed to power")
+    parser.add_argument('--cxpb', '--fitness_function', type=float, default='0.8',
+        help="Cross rate")
+    parser.add_argument('--mupb', '--fitness_function', type=float, default='0.1',
+        help="Mutation rate")
     # parser.add_argument('binary',help="Binary of the CUDA application", nargs='?', default='a.out')
     # parser.add_argument('args',help="arguments for the application binary", nargs=argparse.REMAINDER)
     args = parser.parse_args()
@@ -577,7 +581,9 @@ if __name__ == '__main__':
         profile=profile,
         timeout=args.timeout,
         fitness=args.fitness_function,
-        popsize=args.pop_size)
+        popsize=args.pop_size,
+        CXPB=args.cxpb,
+        MUPB=args.mupb)
 
     print("      Target CUDA program: {}".format(profile['binary']))
     print("Args for the CUDA program:")
@@ -586,6 +592,8 @@ if __name__ == '__main__':
     print("           Target kernels: {}".format(" ".join(profile['kernels'])))
     print("       Evaluation Timeout: {}".format(args.timeout))
     print("         Fitness function: {}".format(args.fitness_function))
+    print("               Cross Rate: {}".format(args.cxpb))
+    print("            Mutation Rate: {}".format(args.mupb))
 
     try:
         evo.evolve(args.resume)
