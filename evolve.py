@@ -377,7 +377,7 @@ class evolution:
         editkey = individual.__hash__()
         if editkey in self.editFitMap:
             print('r', end='', flush=True)
-            return editFitMap[editkey]
+            return self.editFitMap[editkey]
 
         # link
         try:
