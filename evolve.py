@@ -249,7 +249,9 @@ class evolution:
             if None in fit:
                 continue
 
-            individual = test_ind
+            individual.update(srcEnc=test_ind.srcEnc)
+            individual.edits.append(editUID)
+            individual.rearrage()
             individual.fitness.values = fit
             return individual,
 
@@ -289,6 +291,7 @@ class evolution:
             if None not in fit2:
                 ind2 = child2
                 ind2.fitness.values = fit2
+
             return ind1, ind2
 
         print("Cannot get crossover to survive in {} trials".format(len(ind1) + len(ind2)))
@@ -374,7 +377,7 @@ class evolution:
 
     def evaluate(self, individual):
         # first to check whether we can find the same entry in the editFitmap
-        editkey = individual.__hash__()
+        editkey = individual.key()
         if editkey in self.editFitMap:
             print('r', end='', flush=True)
             return self.editFitMap[editkey]
@@ -383,6 +386,7 @@ class evolution:
         try:
             individual.ptx(self.cudaPTX)
         except:
+            self.editFitMap[editkey] = (None, None)
             return None, None
 
         with open('a.ll', 'w') as f:
@@ -393,6 +397,7 @@ class evolution:
         for tc in self.testcase:
             fitness, err = self.execNVprofRetrive(tc)
             if fitness is None or err is None:
+                self.editFitMap[editkey] = (None, None)
                 return None, None
 
             fits.append(fitness)
@@ -492,14 +497,6 @@ class evolution:
 
             self.generation = self.generation + 1
 
-            if rapid_mutation:
-                print("Rapid mutation! Stop crossover and increase mutation rate.")
-                self.CXPB = 0.0
-                self.MUPB = 1.0
-            else:
-                self.CXPB = 0.8
-                self.MUPB = 0.1
-
             threadPool.clear()
             for child1, child2 in zip(offspring[::2], offspring[1::2]):
                 if len(child1) < 2 and len(child2) < 2:
@@ -521,9 +518,9 @@ class evolution:
             for thread in threadPool:
                 thread.join()
 
-            # self.pop = self.toolbox.select(self.pop + offspring, popSize)
-            elite = self.toolbox.select(self.pop, 4)
-            self.pop = self.toolbox.select(elite + offspring, popSize)
+            self.pop = self.toolbox.select(self.pop + offspring, popSize)
+            # elite = self.toolbox.select(self.pop, 4)
+            # self.pop = self.toolbox.select(elite + offspring, popSize)
             record = self.stats.compile(self.pop)
             self.logbook.record(gen=self.generation, evals=popSize, **record)
             self.paretof.update(self.pop)
@@ -532,20 +529,6 @@ class evolution:
             print(self.logbook.stream)
             self.updateSlideFromPlot()
             self.writeStage()
-
-            if rapid_mutation:
-                rapid_mutation = False
-                minExecTime = record['min'][0]
-                no_fitness_change = 0
-
-            if minExecTime <= record['min'][0]:
-                no_fitness_change = no_fitness_change + 1
-                if no_fitness_change == 10:
-                    rapid_mutation = True
-            else:
-                minExecTime = record['min'][0]
-                if no_fitness_change >= 0:
-                    no_fitness_change = 0
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Evolve CUDA kernel function")
