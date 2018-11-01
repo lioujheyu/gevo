@@ -108,7 +108,7 @@ class llvmIRrep():
             self.edits = edits
         self.update_linesize()
 
-    def __key(self):
+    def key(self):
         return tuple([edit for editG in self.edits for edit in editG])
 
     def __len__(self):
@@ -118,7 +118,7 @@ class llvmIRrep():
         return self.edits == other.edits
 
     def __hash__(self):
-        return hash(self.__key())
+        return hash(self.key())
 
     def serialize_edits(self):
         if self.edits is None:
