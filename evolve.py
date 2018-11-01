@@ -579,7 +579,7 @@ if __name__ == '__main__':
     print("         Fitness function: {}".format(args.fitness_function))
     print("               Cross Rate: {}".format(args.cxpb))
     print("            Mutation Rate: {}".format(args.mupb))
-    print("            Mutation Rate: {}".format(args.err_rate))
+    print("      Tolerate Error Rate: {}".format(args.err_rate))
 
     try:
         evo.evolve(args.resume)
