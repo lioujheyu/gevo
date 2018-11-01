@@ -97,7 +97,7 @@ int main(int argc, char *argv[])
     string source_filename = argv[1];
     string golden_filename = argv[2];
     double epsilon = 0.01;
-    if (argc == 3) {
+    if (argc == 4) {
         try {
             epsilon = stod(argv[3]);
         }
