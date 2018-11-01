@@ -75,9 +75,10 @@ class evolution:
 
     def __init__(self, kernel, bin, profile, timeout=30, fitness='time', popsize=128,
                  llvm_src_filename='cuda-device-only-kernel.ll',
-                 CXPB=0.8, MUPB=0.1):
+                 CXPB=0.8, MUPB=0.1, err_rate=0.01):
         self.CXPB = CXPB
         self.MUPB = MUPB
+        self.err_rate = err_rate
         self.kernels = kernel
         self.appBinary = bin
         # self.appArgs = "" if args is None else args
@@ -208,7 +209,7 @@ class evolution:
                     except IOError:
                         print("File {} or {} cannot be found".format(src, golden))
                 else:
-                    rc, msg, maxerr, avgerr = fuzzycompare.file(s, g)
+                    rc, msg, maxerr, avgerr = fuzzycompare.file(s, g, self.err_rate)
                     if rc < 0:
                         raise Exception(msg)
                     result = result & (True if rc==0 else False)
@@ -546,6 +547,8 @@ if __name__ == '__main__':
         help="What is the target fitness for the evolution. Default ot execution time. Can be changed to power")
     parser.add_argument('--cxpb', type=float, default='0.8', help="Cross rate")
     parser.add_argument('--mupb', type=float, default='0.1', help="Mutation rate")
+    parser.add_argument('--err_rate', type=float, default='0.01',
+        help="Allowed maximum relative error generate from mutant comparing to the origin")
     # parser.add_argument('binary',help="Binary of the CUDA application", nargs='?', default='a.out')
     # parser.add_argument('args',help="arguments for the application binary", nargs=argparse.REMAINDER)
     args = parser.parse_args()
@@ -564,7 +567,8 @@ if __name__ == '__main__':
         fitness=args.fitness_function,
         popsize=args.pop_size,
         CXPB=args.cxpb,
-        MUPB=args.mupb)
+        MUPB=args.mupb,
+        err_rate=args.err_rate)
 
     print("      Target CUDA program: {}".format(profile['binary']))
     print("Args for the CUDA program:")
@@ -575,6 +579,7 @@ if __name__ == '__main__':
     print("         Fitness function: {}".format(args.fitness_function))
     print("               Cross Rate: {}".format(args.cxpb))
     print("            Mutation Rate: {}".format(args.mupb))
+    print("            Mutation Rate: {}".format(args.err_rate))
 
     try:
         evo.evolve(args.resume)

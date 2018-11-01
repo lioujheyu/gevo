@@ -10,6 +10,7 @@
 
 #ifndef STANDALONE
 #   include<pybind11/pybind11.h>
+    namespace py = pybind11;
 #endif
 
 using namespace std;
@@ -19,7 +20,7 @@ using namespace std;
  * @in golden filename for comparison
  * @return <return code, message, max error, avg error>
  **/
-tuple<int, string, double, double> file(string src, string golden)
+tuple<int, string, double, double> file(string src, string golden, double epsilon)
 {
     ifstream sfp(src);
     ifstream gfp(golden);
@@ -41,7 +42,7 @@ tuple<int, string, double, double> file(string src, string golden)
 
     double sval, gval;
     double maxErr=0.0, avgErr=0.0;
-    double epsilon = 0.01;
+    // double epsilon = 0.01;
     string maxErrMsg;
     for (unsigned i=0; i<sstrvec.size(); i++) {
         // Skip the string that is float point number
@@ -89,13 +90,23 @@ tuple<int, string, double, double> file(string src, string golden)
 int main(int argc, char *argv[])
 {
     if (argc < 3) {
-        cout << "usage: fuzzycompare <source_file> <golden_file>" << endl;
+        cout << "usage: fuzzycompare <source_file> <golden_file> [epsilon]" << endl;
         exit(-1);
     }
 
     string source_filename = argv[1];
     string golden_filename = argv[2];
-    tuple<int, string, double, double> rc = file(source_filename, golden_filename);
+    double epsilon = 0.01;
+    if (argc == 3) {
+        try {
+            epsilon = stod(argv[3]);
+        }
+        catch (invalid_argument const &e) {
+            cout << "epsilon is not a floating-point number" << endl;
+            exit(-1);
+        }
+    }
+    tuple<int, string, double, double> rc = file(source_filename, golden_filename, epsilon);
     cout << get<1>(rc) << endl;
     if (get<0>(rc) >= 0) {
         cout << "Max:" << get<2>(rc) << endl;
@@ -107,6 +118,7 @@ int main(int argc, char *argv[])
 PYBIND11_MODULE(fuzzycompare, m) {
     m.doc() = "Fuzzy compare"; // optional module docstring
 
-    m.def("file", &file, "File comparison");
+    // By default, the allowed epsilon will be
+    m.def("file", &file, "File comparison", py::arg("src"), py::arg("golden"), py::arg("epsilon") = 0.01);
 }
 #endif
