@@ -160,7 +160,7 @@ class evolution:
         plt.title("Program variant performance - Generation {}".format(self.generation))
         plt.xlabel("Runtime(ms)")
         plt.ylabel("Error(%)")
-        plt.ylim(ymin=-0.1, ymax=1.0)
+        plt.ylim(ymin=-(self.err_rate*100/20), ymax=self.err_rate*100)
         plt.xticks(rotation=45)
         plt.scatter([fit[0]/1000 for fit in fits], [fit[1]*100 for fit in fits],
                     marker='*', label="dominated")
