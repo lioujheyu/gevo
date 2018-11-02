@@ -15,10 +15,19 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
     else:
         mut_command.extend(['-'+op, field1 + ',' + field2])
 
-    proc = subprocess.run(mut_command,
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE,
-                          input=srcEncIn)
+    try:
+        proc = subprocess.run(mut_command,
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE,
+                              input=srcEncIn,
+                              timeout=5)
+    except subprocess.TimeoutExpired:
+        print(proc.stderr.decode(), file=sys.stderr)
+        with open('error.ll', 'w') as f:
+            f.write(proc.stdout.decode())
+        print(*mut_command)
+        raise Exception('Critical Error: llvm-mutate timeout! ')
+
     if proc.returncode != 0:
         print(proc.stderr.decode(), file=sys.stderr)
         with open('error.ll', 'w') as f:
