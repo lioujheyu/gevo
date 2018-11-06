@@ -189,8 +189,9 @@ class evolution:
 
         with open(stageFileName, 'w') as fp:
             count = 0
-            allEdits = [ind.edits for ind in self.pop]
-            json.dump(allEdits, fp, indent=2)
+            stage = [{'edits': ind.edits, 'fitness': ind.fitness.values} for ind in self.pop]
+            # allEdits = [ind.edits for ind in self.pop]
+            json.dump(stage, fp, indent=2)
 
     def resultCompare(self, stdoutStr, testcase):
         src = self.verifier['output']
@@ -431,7 +432,8 @@ class evolution:
                 stageFileName = "stage/" + str(resumeGen) + ".json"
 
             try:
-                allEdits = json.load(open(stageFileName))
+                stage = json.load(open(stageFileName))
+                allEdits = [entry['edits'] for entry in stage]
             except:
                 print(sys.exc_info())
                 exit(1)
@@ -484,17 +486,22 @@ class evolution:
         rapid_mutation = False
         no_fitness_change = -5 # give more generations at start before rapid mutation
         while True:
-            offspring = tools.selTournamentDCD(self.pop, popSize-4)
+            offspring = tools.selTournamentDCD(self.pop, popSize)
             # Clone the selected individuals
             offspring = list(map(self.toolbox.clone, offspring))
 
             # for i, ind in enumerate(self.paretof):
             paretofGen = tools.sortNondominated(self.pop, popSize, first_front_only=True)
-            for i, ind in enumerate(paretofGen[0]):
-                with open("g{}_pf{}.ll".format(self.generation, i), 'w') as f:
-                    f.write(ind.srcEnc.decode())
-                with open("g{}_pf{}.edit".format(self.generation, i), 'w') as f:
-                    print(ind.edits, file=f)
+            paretofGen[0].sort(key=lambda ind: ind.fitness.values[0])
+            # for i, ind in enumerate(paretofGen[0]):
+            with open("g{}_noerr.ll".format(self.generation), 'w') as f:
+                f.write(paretofGen[0][-1].srcEnc.decode())
+            with open("g{}_noerr.edit".format(self.generation), 'w') as f:
+                print(paretofGen[0][-1].edits, file=f)
+            with open("g{}_maxerr.ll".format(self.generation), 'w') as f:
+                f.write(paretofGen[0][0].srcEnc.decode())
+            with open("g{}_maxerr.edit".format(self.generation), 'w') as f:
+                print(paretofGen[0][0].edits, file=f)
 
             self.generation = self.generation + 1
 
@@ -519,9 +526,9 @@ class evolution:
             for thread in threadPool:
                 thread.join()
 
-            self.pop = self.toolbox.select(self.pop + offspring, popSize)
-            # elite = self.toolbox.select(self.pop, 4)
-            # self.pop = self.toolbox.select(elite + offspring, popSize)
+            # self.pop = self.toolbox.select(self.pop + offspring, popSize)
+            elite = self.toolbox.select(self.pop, 64)
+            self.pop = self.toolbox.select(elite + offspring, popSize)
             record = self.stats.compile(self.pop)
             self.logbook.record(gen=self.generation, evals=popSize, **record)
             self.paretof.update(self.pop)
