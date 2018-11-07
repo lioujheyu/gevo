@@ -21,10 +21,10 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
                               stderr=subprocess.PIPE,
                               input=srcEncIn,
                               timeout=5)
-    except subprocess.TimeoutExpired:
-        print(proc.stderr.decode(), file=sys.stderr)
+    except subprocess.TimeoutExpired as err:
+        print(err.stderr, file=sys.stderr)
         with open('error.ll', 'w') as f:
-            f.write(proc.stdout.decode())
+            f.write(err.stdout)
         print(*mut_command)
         raise Exception('Critical Error: llvm-mutate timeout! ')
 
