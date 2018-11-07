@@ -97,7 +97,7 @@ def diff(edits1, edits2):
 
 def update_from_edits(idx, ind, resultList):
     proc = subprocess.run(
-        ['llvm-mutate'] + ind.serialize_edits(),
+        ['llvm-mutate', '--not_use_result'] + ind.serialize_edits(),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         input=ind.srcEnc
@@ -153,7 +153,7 @@ class llvmIRrep():
 
     def update_from_edits(self, sweepEdits=False):
         if sweepEdits == False:
-            proc = subprocess.run(['llvm-mutate'] + self.serialize_edits(),
+            proc = subprocess.run(['llvm-mutate', '--not_use_result'] + self.serialize_edits(),
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE,
                                   input=self.srcEnc)
