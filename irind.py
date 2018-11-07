@@ -97,16 +97,18 @@ def diff(edits1, edits2):
 
 def update_from_edits(idx, ind, resultList):
     proc = subprocess.run(
-        ['llvm-mutate'] + ind.serialize_edits(),
+        ['llvm-mutate', '--no-repair'] + ind.serialize_edits(),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         input=ind.srcEnc
     )
-    if proc.returncode != 0:
+    # verify the code since the previous opt disables the verifier
+    procV = subprocess.run(['opt'], input=proc.stdout)
+    if proc.returncode != 0 or procV.returncode != 0:
         resultList[idx] = False
-
-    ind.update(proc.stdout)
-    resultList[idx] = True
+    else:
+        ind.update(proc.stdout)
+        resultList[idx] = True
 
 class llvmIRrep():
     def __init__(self, srcEnc, edits=None):
@@ -153,11 +155,13 @@ class llvmIRrep():
 
     def update_from_edits(self, sweepEdits=False):
         if sweepEdits == False:
-            proc = subprocess.run(['llvm-mutate'] + self.serialize_edits(),
+            proc = subprocess.run(['llvm-mutate', '--no-repair'] + self.serialize_edits(),
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE,
                                   input=self.srcEnc)
-            if proc.returncode != 0:
+            # verify the code since the previous opt disables the verifier
+            procV = subprocess.run(['opt'], input=proc.stdout)
+            if proc.returncode != 0 or procV.returncode != 0:
                 return False
             mutateSrcEn = proc.stdout
         else:
