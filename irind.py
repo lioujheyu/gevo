@@ -103,7 +103,7 @@ def update_from_edits(idx, ind, resultList):
         input=ind.srcEnc
     )
     # verify the code since the previous opt disables the verifier
-    procV = subprocess.run(['opt'], input=proc.stdout)
+    procV = subprocess.run(['opt'], input=proc.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if proc.returncode != 0 or procV.returncode != 0:
         resultList[idx] = False
     else:
@@ -160,7 +160,7 @@ class llvmIRrep():
                                   stderr=subprocess.PIPE,
                                   input=self.srcEnc)
             # verify the code since the previous opt disables the verifier
-            procV = subprocess.run(['opt'], input=proc.stdout)
+            procV = subprocess.run(['opt'], input=proc.stdout, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             if proc.returncode != 0 or procV.returncode != 0:
                 return False
             mutateSrcEn = proc.stdout
