@@ -22,12 +22,13 @@ class program(evolve.evolution):
     cudaPTX = 'a.ptx'
 
     def __init__(self, editf, kernel, bin, profile, timeout=30, fitness='time',
-                 llvm_src_filename='cuda-device-only-kernel.ll'):
+                 llvm_src_filename='cuda-device-only-kernel.ll', err_rate=0.01):
         self.kernels = kernel
         self.appBinary = bin
         # self.appArgs = "" if args is None else args
         self.timeout = timeout
         self.fitness_function = fitness
+        self.err_rate = err_rate
 
         try:
             with open(editf, 'r') as f:
@@ -112,6 +113,8 @@ if __name__ == '__main__':
         help="The timeout period to evaluate the CUDA application")
     parser.add_argument('-fitf', '--fitness_function', type=str, default='time',
         help="What is the target fitness for the evolution. Default ot execution time. Can be changed to power")
+    parser.add_argument('--err_rate', type=float, default='0.01',
+        help="Allowed maximum relative error generate from mutant comparing to the origin")
     args = parser.parse_args()
 
     try:
@@ -126,7 +129,8 @@ if __name__ == '__main__':
         bin=profile['binary'],
         profile=profile,
         timeout=args.timeout,
-        fitness=args.fitness_function)
+        fitness=args.fitness_function,
+        err_rate=args.err_rate)
 
     print("      Target CUDA program: {}".format(profile['binary']))
     print("Args for the CUDA program:")
@@ -136,6 +140,7 @@ if __name__ == '__main__':
     print("       Evaluation Timeout: {}".format(args.timeout))
     print("         Fitness function: {}".format(args.fitness_function))
     print("                Edit file: {}".format(args.edit))
+    print("      Tolerate Error Rate: {}".format(args.err_rate))
 
     try:
         alyz.edittest()
