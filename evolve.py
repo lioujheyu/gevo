@@ -398,6 +398,11 @@ class evolution:
         errs = []
         for tc in self.testcase:
             fitness, err = self.execNVprofRetrive(tc)
+
+            for res_file in self.verifier['output']:
+                if os.path.exists(res_file):
+                    os.remove(res_file)
+
             if fitness is None or err is None:
                 self.editFitMap[editkey] = (None, None)
                 return None, None
