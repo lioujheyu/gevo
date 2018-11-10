@@ -182,7 +182,7 @@ class llvmIRrep():
         self.edits = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd + op_cmd
 
     def ptx(self, outf):
-        proc = subprocess.run(['llc', '-o', outf],
+        proc = subprocess.run(['llc', '-mcpu=sm_30', '-mattr=+ptx60', '-o', outf],
                               stdout=subprocess.PIPE,
                               input=self.srcEnc)
 
