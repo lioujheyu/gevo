@@ -57,5 +57,7 @@ if __name__ == '__main__':
     ind.update_from_edits()
     with open("dump.ll", 'w') as f:
         f.write(ind.srcEnc.decode())
+    with open("dump.edit", 'w') as f:
+        print(ind.edits, file=f)
     ind.ptx('a.ptx')
     print("Generate dump.ll and a.ptx")
