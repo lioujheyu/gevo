@@ -83,6 +83,7 @@ class program(evolve.evolution):
         fits = [ tc.fitness[0] for tc in self.testcase]
         errs = [ tc.fitness[1] for tc in self.testcase]
         self.origin.fitness.values = (sum(fits)/len(fits), max(errs))
+        print("Fitness of the original program: {}".format(self.origin.fitness.values))
 
     def edittest(self):
         self.pop = self.toolbox.population(n=len(self.edits))
