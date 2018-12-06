@@ -10,6 +10,7 @@ import sys
 import filecmp
 import io
 import os
+import re
 from itertools import cycle
 from threading import Thread
 from threading import Lock
@@ -68,10 +69,11 @@ class evolution:
                 print(self.args)
                 raise Exception("Original binary execution error")
 
-            for fname in self.verifier['output']:
-                golden_filename = fname + '.golden' + str(self.idx)
-                os.rename(fname, golden_filename)
-                self.golden.append(golden_filename)
+            if self.verifier['mode'] == 'file':
+                for fname in self.verifier['output']:
+                    golden_filename = fname + '.golden' + str(self.idx)
+                    os.rename(fname, golden_filename)
+                    self.golden.append(golden_filename)
 
     def __init__(self, kernel, bin, profile, timeout=30, fitness='time', popsize=128,
                  llvm_src_filename='cuda-device-only-kernel.ll',
@@ -201,6 +203,14 @@ class evolution:
         if self.verifier['mode'] == 'string':
             result = False if src.find(golden) == -1 else True
             return result, err
+        elif self.verifier['mode'] == 'thundersvm':
+            for line in stdoutStr.splitlines():
+                if line.find('Cross Accuracy = ') != -1:
+                    accuracy = float(line.replace('Cross Accuracy = ',''))
+                    err = 1 - accuracy
+                    result = False if err > self.err_rate else True
+                    return result, err
+            return False, err
         elif self.verifier['mode'] == 'file':
             result = True
             for s, g in zip(src, golden):
