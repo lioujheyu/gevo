@@ -15,7 +15,7 @@ from itertools import cycle
 from threading import Thread
 from threading import Lock
 
-# too avoid running into Not-Find-Display problem
+# Avoid Not-Find-Display problem
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -196,11 +196,10 @@ class evolution:
             json.dump(stage, fp, indent=2)
 
     def resultCompare(self, stdoutStr, testcase):
-        src = self.verifier['output']
-        golden = testcase.golden
-
         err = 0.0
         if self.verifier['mode'] == 'string':
+            src = self.verifier['output']
+            golden = testcase.golden
             result = False if src.find(golden) == -1 else True
             return result, err
         elif self.verifier['mode'] == 'thundersvm':
@@ -211,7 +210,17 @@ class evolution:
                     result = False if err > self.err_rate else True
                     return result, err
             return False, err
+        elif self.verifier['mode'] == 'caffe2':
+            for line in stdoutStr.splitlines():
+                if line.find('Accuracy = ') != -1:
+                    accuracy = float(line.replace('Accuracy = ',''))
+                    err = 1 - accuracy
+                    result = False if err > self.err_rate else True
+                    return result, err
+            return False, err
         elif self.verifier['mode'] == 'file':
+            src = self.verifier['output']
+            golden = testcase.golden
             result = True
             for s, g in zip(src, golden):
                 if self.verifier.get('fuzzy', False) == False:
@@ -312,7 +321,9 @@ class evolution:
     def execNVprofRetrive(self, testcase):
         proc = subprocess.Popen(['/usr/local/cuda/bin/nvprof',
                                  '--unified-memory-profiling', 'off',
-                                 '--profile-from-start', 'off',
+                                #  '--profile-from-start', 'off',
+                                 '--profile-child-processes',
+                                 '--profile-api-trace', 'none',
                                  '--system-profiling', 'on',
                                  '--csv',
                                  '-u', 'us',
@@ -358,6 +369,7 @@ class evolution:
 
             # search for kernel function(s)
             kernel_time = []
+            time_percent = []
             energy = None
             # The stats starts after 5th line
             for line in csv_list[5:]:
@@ -370,6 +382,7 @@ class evolution:
                             if line[7].split('(')[0] == name:
                                 # 3rd column for avg execution time
                                 kernel_time.append(float(line[2]))
+                                time_percent.append(float(line[1]))
                         except:
                             continue
                 if line[0] == "Power (mW)":
@@ -380,7 +393,9 @@ class evolution:
 
             if len(self.kernels) == len(kernel_time) and energy is not None:
                 if self.fitness_function == 'time':
-                    return sum(kernel_time), err
+                    total_kernel_time = sum(kernel_time)*100 / sum(time_percent)
+                    return total_kernel_time, err
+                    # return sum(kernel_time), err
                 elif self.fitness_function == 'power':
                     return energy, err
             else:
