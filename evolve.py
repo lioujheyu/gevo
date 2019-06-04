@@ -621,9 +621,9 @@ if __name__ == '__main__':
     try:
         evo.evolve(args.resume)
     except KeyboardInterrupt:
-        subprocess.run(['killall', args.binary])
-        print("valid variant:   {}".format(evo.stats['valid']))
-        print("invalid variant: {}".format(evo.stats['invalid']))
-        print("infinite variant:{}".format(evo.stats['infinite']))
+        subprocess.run(['killall', profile['binary']])
+        print("   Valid variant:{}".format(evo.mutStats['valid']))
+        print(" Invalid variant:{}".format(evo.mutStats['invalid']))
+        print("Infinite variant:{}".format(evo.mutStats['infinite']))
         if evo.generation > 0:
             evo.presentation.save('progress.pptx')
