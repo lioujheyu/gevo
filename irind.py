@@ -10,7 +10,7 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
     return returnCode, mutated and encoded source, edit with UID
     """
     mut_command = ['llvm-mutate']
-    if op == 'c':
+    if op == 'c' or op == 'x':
         mut_command.extend(['-'+op, field1])
     else:
         mut_command.extend(['-'+op, field1 + ',' + field2])
@@ -39,7 +39,7 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
     for line in proc.stderr.decode().split('\n'):
         if len(line) == 0:
             continue
-        result = re.search('(\w+) (U[0-9.irsmOP]+)(,([UAC][0-9.irsm]+))?', line)
+        result = re.search('(\w+) (U[0-9.irsmxOP]+)(,([UAC][0-9.irsmx]+))?', line)
 
         if result == None:
             print(proc.stderr.decode(), file=sys.stderr)
@@ -52,7 +52,7 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
             if result.group(1) == "opreplaced":
                 editUID.append(('-p', result.group(2) + ',' + result.group(4)))
             else:
-                if op == 'c':
+                if op == 'c' or op == 'x':
                     editUID = [('-'+op, result.group(2))] + editUID
                 else:
                     editUID = [('-'+op, result.group(2) + ',' + result.group(4))] + editUID
@@ -74,6 +74,7 @@ def rearrage(cmd):
     i_cmd  = sorted([c for c in cmdlist if c[0][0] == '-i'])
     m_cmd  = sorted([c for c in cmdlist if c[0][0] == '-m'])
     s_cmd  = sorted([c for c in cmdlist if c[0][0] == '-s'])
+    s_cmd  = sorted([c for c in cmdlist if c[0][0] == '-x'])
     op_cmd = sorted([c for c in cmdlist if c[0][0] == '-p'])
 
     cmdlist = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd + op_cmd
