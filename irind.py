@@ -74,10 +74,10 @@ def rearrage(cmd):
     i_cmd  = sorted([c for c in cmdlist if c[0][0] == '-i'])
     m_cmd  = sorted([c for c in cmdlist if c[0][0] == '-m'])
     s_cmd  = sorted([c for c in cmdlist if c[0][0] == '-s'])
-    s_cmd  = sorted([c for c in cmdlist if c[0][0] == '-x'])
+    x_cmd  = sorted([c for c in cmdlist if c[0][0] == '-x'])
     op_cmd = sorted([c for c in cmdlist if c[0][0] == '-p'])
 
-    cmdlist = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd + op_cmd
+    cmdlist = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd + x_cmd + op_cmd
     return cmdlist
 
 def diff(edits1, edits2):
@@ -178,9 +178,10 @@ class llvmIRrep():
         i_cmd  = sorted([c for c in self.edits if c[0][0] == '-i'])
         m_cmd  = sorted([c for c in self.edits if c[0][0] == '-m'])
         s_cmd  = sorted([c for c in self.edits if c[0][0] == '-s'])
+        x_cmd  = sorted([c for c in self.edits if c[0][0] == '-x'])
         op_cmd = sorted([c for c in self.edits if c[0][0] == '-p'])
 
-        self.edits = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd + op_cmd
+        self.edits = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd + x_cmd + op_cmd
 
     def ptx(self, outf):
         proc = subprocess.run(['llc', "-march=nvptx64", "-mcpu=sm_60", "-mattr=+ptx60", '-o', outf],
