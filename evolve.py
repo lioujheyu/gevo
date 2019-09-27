@@ -25,6 +25,7 @@ from deap import base
 from deap import creator
 from deap import tools
 import pptx
+import signal, psutil
 
 sys.path.append('/home/jliou4/genetic-programming/cuda_evolve')
 import irind
@@ -347,10 +348,18 @@ class evolution:
             # Sometimes terminating nvprof will not terminate the underlying cuda program
             # if that program is corrupted. So issue the kill command to those cuda app first
             print('8', end='', flush=True)
+            try:
+                parent = psutil.Process(proc.pid)
+            except psutil.NoSuchProcess:
+                return
+            children = parent.children(recursive=True)
+            for subproc in children:
+                subproc.terminate()
             subprocess.run(['killall', self.appBinary],
                            stdout=subprocess.PIPE,
                            stderr=subprocess.PIPE)
-            proc.kill()
+
+            proc.terminate()
             proc.wait()
             self.mutStats['infinite'] = self.mutStats['infinite'] + 1
             return None, None
@@ -622,8 +631,8 @@ if __name__ == '__main__':
         evo.evolve(args.resume)
     except KeyboardInterrupt:
         subprocess.run(['killall', profile['binary']])
-        print("   Valid variant:{}".format(evo.mutStats['valid']))
-        print(" Invalid variant:{}".format(evo.mutStats['invalid']))
-        print("Infinite variant:{}".format(evo.mutStats['infinite']))
+        print("   Valid variant: {}".format(evo.mutStats['valid']))
+        print(" Invalid variant: {}".format(evo.mutStats['invalid']))
+        print("Infinite variant: {}".format(evo.mutStats['infinite']))
         if evo.generation > 0:
             evo.presentation.save('progress.pptx')
