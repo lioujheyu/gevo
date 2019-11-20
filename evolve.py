@@ -38,7 +38,8 @@ lock = Lock()
 
 class evolution:
     # Parameters
-    log = open('debug_log', 'w')
+    mutLogFile = open('mut_stat.log', 'w')
+    mutDistFile = open('mut_dist.csv', 'w')
     cudaPTX = 'a.ptx'
     editFitMap = {}
 
@@ -48,8 +49,14 @@ class evolution:
     presentation = pptx.Presentation()
 
     mutStats = {
+        'failDistribution': {'-1': 0},
         'valid':0, 'invalid':0, 'infinite':0,
-        'maxFit':[], 'avgFit':[], 'minFit':[]
+        'op_success':{
+            'c':0, 'r':0, 'i':0, 's':0, 'm':0, 'p':0
+        },
+        'op_fail':{
+            'c':0, 'r':0, 'i':0, 's':0, 'm':0, 'p':0
+        },
     }
 
     class _testcase:
@@ -196,6 +203,40 @@ class evolution:
             # allEdits = [ind.edits for ind in self.pop]
             json.dump(stage, fp, indent=2)
 
+    def mutLog(self):
+        print("gen {}".format(self.generation), file=self.mutLogFile)
+        print("Individual mutation opeartion statistic", file=self.mutLogFile)
+        print("       |         c         r         i         s         m         p", file=self.mutLogFile)
+        print("success|{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}".format(
+            self.mutStats['op_success']['c'],
+            self.mutStats['op_success']['r'],
+            self.mutStats['op_success']['i'],
+            self.mutStats['op_success']['s'],
+            self.mutStats['op_success']['m'],
+            self.mutStats['op_success']['p'],
+        ), file=self.mutLogFile)
+        print("fail   |{:>10}{:>10}{:>10}{:>10}{:>10}{:>10}".format(
+            self.mutStats['op_fail']['c'],
+            self.mutStats['op_fail']['r'],
+            self.mutStats['op_fail']['i'],
+            self.mutStats['op_fail']['s'],
+            self.mutStats['op_fail']['m'],
+            self.mutStats['op_fail']['p'],
+        ), file=self.mutLogFile)
+        print("", file=self.mutLogFile)
+        self.mutLogFile.flush()
+
+        numMut = ["Num of Mutation"]
+        count = ["Count"]
+        for key in self.mutStats['failDistribution']:
+            numMut.append(int(key))
+            count.append(self.mutStats['failDistribution'][key])
+        mutDistWrite = csv.writer(self.mutDistFile, quoting=csv.QUOTE_NONNUMERIC)
+        mutDistWrite.writerow(["Gen {}".format(self.generation)])
+        mutDistWrite.writerow(numMut)
+        mutDistWrite.writerow(count)
+        self.mutDistFile.flush()
+
     def resultCompare(self, stdoutStr, testcase):
         err = 0.0
         if self.verifier['mode'] == 'string':
@@ -244,7 +285,7 @@ class evolution:
         trial = 0
         # cut, replace, insert, swap, move, operand replace, cache
         operations = ['c', 'r', 'i', 's', 'm', 'p', 'x']
-        while trial < individual.lineSize:
+        while trial < individual.lineSize*2:
             line1 = random.randint(1, individual.lineSize)
             line2 = random.randint(1, individual.lineSize)
             while line1 == line2:
@@ -269,15 +310,26 @@ class evolution:
                 fit = self.evaluate(test_ind)
                 print('m', end='', flush=True)
             if None in fit:
+                self.mutStats['invalid'] = self.mutStats['invalid'] + 1
+                self.mutStats['op_fail'][op] = self.mutStats['op_fail'][op] + 1
                 continue
 
+            self.mutStats['valid'] = self.mutStats['valid'] + 1
+            self.mutStats['op_success'][op] = self.mutStats['op_success'][op] + 1
+            self.mutStats['failDistribution'][str(trial)] = \
+                self.mutStats['failDistribution'][str(trial)] + 1 \
+                if str(trial) in self.mutStats['failDistribution'] else 1
             individual.update(srcEnc=test_ind.srcEnc)
             individual.edits.append(editUID)
             individual.rearrage()
             individual.fitness.values = fit
             return individual,
 
-        print("Cannot get mutant to survive in {} trials".format(individual.lineSize))
+        print("Cannot get mutant to survive in {} trials".format(individual.lineSize*2))
+        self.mutStats['failDistribution']['-1'] = self.mutStats['failDistribution']['-1'] + 1
+        with lock:
+            fit = self.evaluate(individual)
+            individual.fitness.values = fit
         return individual,
 
     def cxOnePointLLVM(self, ind1, ind2):
@@ -338,7 +390,6 @@ class evolution:
             # retcode == 15: Target program receive segmentation fault
             if retcode == 9 or retcode == 15:
                 print('x', end='', flush=True)
-                self.mutStats['invalid'] = self.mutStats['invalid'] + 1
                 return None, None
             # Unknown nvprof error
             if retcode != 0:
@@ -368,11 +419,9 @@ class evolution:
         cmpResult, err = self.resultCompare(program_output, testcase)
         if cmpResult is False:
             print('x', end='', flush=True)
-            self.mutStats['invalid'] = self.mutStats['invalid'] + 1
             return None, None
         else:
             print('.', end='', flush=True)
-            self.mutStats['valid'] = self.mutStats['valid'] + 1
             profile_output = stderr.decode()
             csv_list = list(csv.reader(io.StringIO(profile_output), delimiter=','))
 
@@ -402,7 +451,8 @@ class evolution:
 
             if len(self.kernels) == len(kernel_time) and energy is not None:
                 if self.fitness_function == 'time':
-                    total_kernel_time = sum(kernel_time)*100 / sum(time_percent)
+                    # total_kernel_time = sum(kernel_time)*100 / sum(time_percent)
+                    total_kernel_time = sum(kernel_time)
                     return total_kernel_time, err
                     # return sum(kernel_time), err
                 elif self.fitness_function == 'power':
@@ -513,7 +563,9 @@ class evolution:
         self.logbook.record(gen=0, evals=popSize, **record)
         print("")
         print(self.logbook.stream)
+
         self.updateSlideFromPlot()
+        self.mutLog()
         minExecTime = record["min"][0]
 
         # pffits = [ind.fitness.values for ind in self.paretof]
@@ -565,6 +617,9 @@ class evolution:
             for thread in threadPool:
                 thread.join()
 
+            # remove dead individual whose fitness is None
+            self.pop = [ ind for ind in self.pop if ind.fitness.values is not None]
+
             # self.pop = self.toolbox.select(self.pop + offspring, popSize)
             elite = self.toolbox.select(self.pop, 64)
             self.pop = self.toolbox.select(elite + offspring, popSize)
@@ -574,6 +629,7 @@ class evolution:
 
             print("")
             print(self.logbook.stream)
+            self.mutLog()
             self.updateSlideFromPlot()
             self.writeStage()
 
@@ -634,5 +690,6 @@ if __name__ == '__main__':
         print("   Valid variant: {}".format(evo.mutStats['valid']))
         print(" Invalid variant: {}".format(evo.mutStats['invalid']))
         print("Infinite variant: {}".format(evo.mutStats['infinite']))
+        evo.mutLog()
         if evo.generation > 0:
             evo.presentation.save('progress.pptx')
