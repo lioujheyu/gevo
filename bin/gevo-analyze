@@ -13,7 +13,7 @@ from deap import base
 from deap import tools
 
 from gevo import irind
-from geov.evolve import evolution
+from gevo.evolve import evolution
 
 class program(evolution):
     # Parameters
