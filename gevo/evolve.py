@@ -31,7 +31,7 @@ import signal, psutil
 from gevo import irind
 from gevo.irind import llvmMutateWrap
 from gevo.irind import update_from_edits
-import fuzzycompare
+from gevo import fuzzycompare
 
 # critical section of multithreading
 lock = Lock()
