@@ -101,7 +101,12 @@ setup(
     author='Jhe-Yu Liou',
     author_email='lioujheyu@gmail.com',
     url='https://github.com/lioujheyu/cuda_evolve',
-    setup_requires=['pybind11>=2.2', 'deap>=1.2', 'matplotlib>=2.1'],
+    install_requires=[
+        'pybind11>=2.2',
+        'deap>=1.2',
+        'matplotlib>=2.1',
+        'python-pptx>=0.6',
+    ],
     ext_modules=ext_modules,
     cmdclass={
         'build_ext': BuildExt
