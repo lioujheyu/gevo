@@ -11,6 +11,8 @@ import filecmp
 import io
 import os
 import re
+import time
+import gc
 from itertools import cycle
 from threading import Thread
 from threading import Lock
@@ -52,10 +54,10 @@ class evolution:
         'failDistribution': {'-1': 0},
         'valid':0, 'invalid':0, 'infinite':0,
         'op_success':{
-            'c':0, 'r':0, 'i':0, 's':0, 'm':0, 'p':0
+            'c':0, 'r':0, 'i':0, 's':0, 'm':0, 'p':0, 'x':0
         },
         'op_fail':{
-            'c':0, 'r':0, 'i':0, 's':0, 'm':0, 'p':0
+            'c':0, 'r':0, 'i':0, 's':0, 'm':0, 'p':0, 'x':0
         },
     }
 
@@ -83,7 +85,7 @@ class evolution:
                     os.rename(fname, golden_filename)
                     self.golden.append(golden_filename)
 
-    def __init__(self, kernel, bin, profile, timeout=30, fitness='time', popsize=128,
+    def __init__(self, kernel, bin, profile, mutop, timeout=30, fitness='time', popsize=128,
                  llvm_src_filename='cuda-device-only-kernel.ll',
                  CXPB=0.8, MUPB=0.1, err_rate=0.01):
         self.CXPB = CXPB
@@ -95,6 +97,7 @@ class evolution:
         self.timeout = timeout
         self.fitness_function = fitness
         self.popsize = popsize
+        self.mutop = mutop.split(',')
 
         try:
             with open(llvm_src_filename, 'r') as f:
@@ -283,8 +286,7 @@ class evolution:
 
     def mutLLVM(self, individual):
         trial = 0
-        # cut, replace, insert, swap, move, operand replace, cache
-        operations = ['c', 'r', 'i', 's', 'm', 'p', 'x']
+        operations = self.mutop
         while trial < individual.lineSize*2:
             line1 = random.randint(1, individual.lineSize)
             line2 = random.randint(1, individual.lineSize)
@@ -384,7 +386,11 @@ class evolution:
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         try:
+            gc.disable()
+            all_time = time.perf_counter()
             stdout, stderr = proc.communicate(timeout=self.timeout) # second
+            all_time = time.perf_counter() - all_time
+            gc.enable()
             retcode = proc.poll()
             # retcode == 9: error is from testing program, not nvprof
             # retcode == 15: Target program receive segmentation fault
@@ -450,7 +456,11 @@ class evolution:
                     energy = count * avg_power / 20
 
             if len(self.kernels) == len(kernel_time) and energy is not None:
-                if self.fitness_function == 'time':
+                if self.fitness_function == 'time' or self.fitness_function == 'all_time':
+                    # total_kernel_time = sum(kernel_time)*100 / sum(time_percent)
+                    return all_time, err
+                    # return sum(kernel_time), err
+                elif self.fitness_function == 'kernel_time':
                     # total_kernel_time = sum(kernel_time)*100 / sum(time_percent)
                     total_kernel_time = sum(kernel_time)
                     return total_kernel_time, err
@@ -651,6 +661,9 @@ if __name__ == '__main__':
     parser.add_argument('--mupb', type=float, default='0.1', help="Mutation rate")
     parser.add_argument('--err_rate', type=float, default='0.01',
         help="Allowed maximum relative error generate from mutant comparing to the origin")
+    # cut, replace, insert, swap, move, operand replace, cache
+    parser.add_argument('--mutop', type=str, default='c,r,i,s,m,p',
+        help="Specify mutation operation to be enabled during evolution. Operation are separated by comma.")
     # parser.add_argument('binary',help="Binary of the CUDA application", nargs='?', default='a.out')
     # parser.add_argument('args',help="arguments for the application binary", nargs=argparse.REMAINDER)
     args = parser.parse_args()
@@ -670,7 +683,8 @@ if __name__ == '__main__':
         popsize=args.pop_size,
         CXPB=args.cxpb,
         MUPB=args.mupb,
-        err_rate=args.err_rate)
+        err_rate=args.err_rate,
+        mutop=args.mutop)
 
     print("      Target CUDA program: {}".format(profile['binary']))
     print("Args for the CUDA program:")
@@ -682,6 +696,7 @@ if __name__ == '__main__':
     print("               Cross Rate: {}".format(args.cxpb))
     print("            Mutation Rate: {}".format(args.mupb))
     print("      Tolerate Error Rate: {}".format(args.err_rate))
+    print("   Enabled Mut Operations: {}".format(args.mutop))
 
     try:
         evo.evolve(args.resume)
