@@ -35,7 +35,10 @@ if __name__ == '__main__':
 
     pop = {}
     for entry in stage:
-        pop[tuple(entry['fitness'])] = entry['edits']
+        editsList = []
+        for editG in entry['edits']:
+            editsList.append([(e[0], e[1]) for e in editG])
+        pop[tuple(entry['fitness'])] = editsList 
 
     allfit = [tuple(entry['fitness']) for entry in stage]
     allfit = list(set(allfit))
