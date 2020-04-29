@@ -1,8 +1,6 @@
-# CUDA_EVOLVE
+# GEVO
 
 ## Package prerequisite
-----
-
 ### NVIDIA CUDA
 
 ```bash
@@ -36,7 +34,6 @@ sudo ln -s /usr/local/bin/opt-8 /usr/local/bin/opt
 sudo ln -s /usr/local/bin/llvm-dis-8 /usr/local/bin/llvm-dis
 ```
 
-
 ### Python and the related packages
 
 ```bash
@@ -48,16 +45,14 @@ pip3 install --user pybind11
 ```
 
 ## Installation
-----
-
-### Download **cuda_evolve** and **llvm-mutate**
+### Download **llvm-mutate**
 
 ```bash
 git clone ssh://git@www.lioujheyu.com:10022/elvis/cuda_evolve.git
 git clone git@github.com:lioujheyu/llvm-mutate.git
 ```
 
-### Compile and install **llvm-mutate**
+### Compile and install **llvm-mutate** with cuda branch
 
 ```bash
 cd llvm-mutate
@@ -68,9 +63,7 @@ cmake ../
 sudo make && make install
 ```
 
-### Compile **fuzzycompare** in **cuda_evolve**
-
+### Install **GEVO**
 ```bash
-cd cuda_evolve
-sudo make && make install
+pip3 install gevo
 ```
