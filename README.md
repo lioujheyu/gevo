@@ -45,16 +45,11 @@ pip3 install --user pybind11
 ```
 
 ## Installation
-### Download **llvm-mutate**
+### **llvm-mutate**
+GEVO relies on a specific cuda branch of llvm-mutate
 
 ```bash
-git clone ssh://git@www.lioujheyu.com:10022/elvis/cuda_evolve.git
 git clone git@github.com:lioujheyu/llvm-mutate.git
-```
-
-### Compile and install **llvm-mutate** with cuda branch
-
-```bash
 cd llvm-mutate
 git checkout cuda
 mkdir build

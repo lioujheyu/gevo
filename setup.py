@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
-from setuptools import setup, Extension
-from setuptools.command.build_ext import build_ext
 import sys
 import setuptools
+from setuptools import setup, Extension
+from setuptools.command.build_ext import build_ext
 
 class get_pybind_include(object):
     """Helper class to determine the pybind11 include path
@@ -114,4 +114,12 @@ setup(
         'bin/gevo-stage-analyze',
     ],
     zip_safe=False,
+    classifiers=[
+        'Development Status :: 3 - Alpha',
+        'Intended Audience :: Science/Research',
+        'Topic :: Software Development :: Code Generators',
+        'License :: OSI Approved :: MIT License',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: C++',
+    ],
 )
