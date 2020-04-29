@@ -57,7 +57,7 @@ def cpp_flag(compiler):
     """Return the -std=c++[11/14/17] compiler flag.
     The newer version is prefered over c++11 (when it is available).
     """
-    flags = ['-std=c++11', '-shared']
+    flags = ['-std=c++11']
 
     for flag in flags:
         if has_flag(compiler, flag):
@@ -95,7 +95,7 @@ class BuildExt(build_ext):
 
 setup(
     name='gevo',
-    version='1.0.0',
+    version='1.0.1',
     python_requires='>=3.5',
     description='Optimize CUDA kernel code using Evolutionary Computation',
     author='Jhe-Yu Liou',
@@ -107,6 +107,7 @@ setup(
         'matplotlib>=2.1',
         'python-pptx>=0.6',
     ],
+    ext_package='gevo',
     ext_modules=ext_modules,
     cmdclass={
         'build_ext': BuildExt
