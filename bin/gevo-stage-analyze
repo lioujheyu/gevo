@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+import argparse
+import subprocess
+import json
+import sys
+import csv
+import filecmp
+from io import StringIO
+from itertools import cycle
+
+from deap import creator
+from deap import base
+from deap import tools
+
+from gevo import irind
+#import gevo.evolve
+
+if __name__ == '__main__':
+    if len(sys.argv) < 2:
+        print("Stage file name is needed!")
+        exit(-1)
+
+    stageFileName = sys.argv[1]
+
+    llvm_src_filename='cuda-device-only-kernel.ll'
+    try:
+        with open(llvm_src_filename, 'r') as f:
+            initSrcEnc = f.read().encode()
+    except IOError:
+        print("File {} does not exist".format(llvm_src_filename))
+        exit(1)
+
+    stage = json.load(open(stageFileName))
+
+    pop = {}
+    for entry in stage:
+        editsList = []
+        for editG in entry['edits']:
+            editsList.append([(e[0], e[1]) for e in editG])
+        pop[tuple(entry['fitness'])] = editsList 
+
+    allfit = [tuple(entry['fitness']) for entry in stage]
+    allfit = list(set(allfit))
+
+    sort_by_perf = sorted(allfit, key=lambda x: x[0], reverse=True)
+    sort_by_error = sorted(allfit, key=lambda x: x[1], reverse=True)
+
+    sort_type = int(input("Sorted by [1]runtime or [2]error? "))
+    if sort_type == 1:
+        for i in sort_by_perf:
+            print(i)
+    else:
+        for i in sort_by_error:
+            print(i)
+
+    desc = input("Dump which variant? ")
+    key = eval(desc)
+    ind = irind.llvmIRrep(initSrcEnc, edits=pop[key])
+    ind.update_from_edits()
+    with open("dump.ll", 'w') as f:
+        f.write(ind.srcEnc.decode())
+    with open("dump.edit", 'w') as f:
+        print(ind.edits, file=f)
+    ind.ptx('a.ptx')
+    print("Generate dump.ll and a.ptx")
