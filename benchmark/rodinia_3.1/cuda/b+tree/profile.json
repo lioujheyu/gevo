@@ -1,0 +1,33 @@
+{
+	"binary": "b+tree.out",
+	"kernels": ["findK", "findRangeK"],
+	"args": [
+	  {
+		"variability": "list",
+		"value": ["file", "file"],
+		"desc": "file"
+	  },
+	  {
+		"variability": "list",
+		"value": ["../../data/b+tree/mil.txt"],
+		"desc": "file"
+	  },
+	  {
+		"variability": "list",
+		"value": ["command"],
+		"desc": "command"
+	  },
+	  {
+		"variability": "list",
+		"value": ["../../data/b+tree/command.txt"],
+		"desc": "command"
+	  }
+	],
+	"verify": {
+	  "mode": "file",
+	  "output": [
+	    "output.txt"
+	  ],
+	  "fuzzy": true
+	}
+}

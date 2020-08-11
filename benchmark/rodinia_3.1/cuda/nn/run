@@ -1,0 +1,3 @@
+# ./nn filelist_4 -r 5 -lat 30 -lng 90
+#./nn filelist_4 -r 40000 -lat 30 -lng 90 -q
+./nn filelist -r 10 -lat 30 -lng 90 -q

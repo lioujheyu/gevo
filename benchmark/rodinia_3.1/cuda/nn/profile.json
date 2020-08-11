@@ -1,0 +1,46 @@
+{
+	"binary": "nn",
+	"kernels": ["euclid"],
+	"args": [
+	  {
+		  "variability": "list",
+		  "value": ["filelist"],
+		  "desc": "input file"
+		},
+		{
+		  "variability": "list",
+		  "value": ["-r"],
+		  "desc": "record"
+		},
+		{
+		  "variability": "list",
+		  "value": [10],
+		  "desc": "record"
+		},
+		{
+		  "variability": "list",
+		  "value": ["-lat"],
+		  "desc": "latitude"
+		},
+		{
+		  "variability": "list",
+		  "value": [30, 300],
+		  "desc": "latitude"
+		},
+		{
+		  "variability": "list",
+		  "value": ["-lng"],
+		  "desc": "longitude"
+		},
+		{
+		  "variability": "list",
+		  "value": [90, 900],
+		  "desc": "longitude"
+		}
+	],
+	"verify": {
+	  "mode": "file",
+	  "output": ["result"],
+	  "fuzzy": true
+	}
+}

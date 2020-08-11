@@ -1,0 +1,23 @@
+{
+	"binary": "gaussian",
+	"kernels": ["Fan1", "Fan2"],
+	"args": [
+	  {
+		"variability": "list",
+		"value": ["-f"],
+		"desc": "unknown input file"
+	  },
+	  {
+		"variability": "list",
+		"value": ["../../data/gaussian/matrix1024.txt"],
+		"desc": "unknown input file"
+	  }
+	],
+	"verify": {
+	  "mode": "file",
+	  "output": [
+	    "final_solution"
+	  ],
+	  "fuzzy": true
+	}
+}

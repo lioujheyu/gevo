@@ -1,0 +1,52 @@
+{
+	"binary": "srad",
+	"kernels": ["srad_cuda_1", "srad_cuda_2"],
+	"args": [
+	  {
+		  "variability": "list",
+		  "value": [256, 2048],
+		  "desc": "rows, must be a multiply of 16"
+		},
+		{
+		  "variability": "list",
+			"value": [256, 2048],
+			"bond": [0],
+		  "desc": "cols, must be a multiply of 16"
+		},
+		{
+		  "variability": "list",
+		  "value": [0],
+		  "desc": "y1"
+		},
+		{
+		  "variability": "list",
+		  "value": [127],
+		  "desc": "y2"
+		},
+		{
+		  "variability": "list",
+		  "value": [0],
+		  "desc": "x1"
+		},
+		{
+		  "variability": "list",
+		  "value": [127],
+		  "desc": "x2"
+		},
+		{
+		  "variability": "list",
+		  "value": [0.5, 0.7],
+		  "desc": "lamda"
+		},
+		{
+		  "variability": "list",
+		  "value": [2],
+		  "desc": "number of iterations"
+		}
+	],
+	"verify": {
+	  "mode": "file",
+	  "output": ["result"],
+	  "fuzzy": true
+	}
+}

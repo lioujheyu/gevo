@@ -1,0 +1,20 @@
+{
+	"binary": "euler3d",
+	"kernels": ["cuda_time_step", "cuda_compute_flux", "cuda_compute_step_factor", "cuda_initialize_variables"],
+	"args": [
+	  {
+		"variability": "list",
+		"value": ["../../data/cfd/fvcorr.domn.097K"],
+		"desc": "unknown input file"
+	  }
+	],
+	"verify": {
+	  "mode": "file",
+	  "output": [
+	    "density",
+	    "density_energy",
+	    "momentum"
+	  ],
+	  "fuzzy": true
+	}
+}

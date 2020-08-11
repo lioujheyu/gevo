@@ -1,0 +1,18 @@
+{
+	"binary": "bfs",
+	"kernels": ["Kernel", "Kernel2"],
+	"args": [
+	  {
+		"variability": "list",
+		"value": ["../../data/bfs/graph4096.txt", "../../data/bfs/graph65536.txt", "../../data/bfs/graph1MW_6.txt"],
+		"desc": "tree structure input file"
+	  }
+	],
+	"verify": {
+	  "mode": "file",
+	  "output": [
+	    "result.txt"
+	  ],
+	  "fuzzy": false
+	}
+}

@@ -1,0 +1,52 @@
+{
+	"binary": "particlefilter_float",
+	"kernels": ["likelihood_kernel", "sum_kernel", "normalize_weights_kernel", "find_index_kernel"],
+	"args": [
+	  {
+		"variability": "list",
+		"value": ["-x"],
+		"desc": "size x"
+	  },
+	  {
+		"variability": "list",
+		"value": [64, 128, 256],
+		"desc": "size x"
+	  },
+	  {
+		"variability": "list",
+		"value": ["-y"],
+		"desc": "size y"
+	  },
+	  {
+		"variability": "list",
+		"value": [64, 128, 256],
+		"bond": [1],
+		"desc": "size y"
+	  },
+	  {
+		"variability": "list",
+		"value": ["-z"],
+		"desc": "number of frame"
+	  },
+	  {
+		"variability": "list",
+		"value": [3, 99],
+		"desc": "number of frame"
+	  },
+	  {
+		"variability": "list",
+		"value": ["-np"],
+		"desc": "number of particle"
+	  },
+	  {
+		"variability": "list",
+		"value": [77, 9870],
+		"desc": "number of particle"
+	  }
+	],
+	"verify": {
+	  "mode": "file",
+	  "output": ["arrayX", "arrayY", "weights"],
+	  "fuzzy": true
+	}
+}

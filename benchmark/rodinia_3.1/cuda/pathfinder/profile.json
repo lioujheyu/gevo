@@ -1,0 +1,26 @@
+{
+	"binary": "pathfinder",
+	"kernels": ["dynproc_kernel"],
+	"args": [
+	  {
+		"variability": "list",
+		"value": [1165, 66254],
+		"desc": "row length"
+	  },
+	  {
+		"variability": "list",
+		"value": [32, 1024],
+		"desc": "column length"
+	  },
+	  {
+		"variability": "list",
+		"value": [5, 10, 46],
+		"desc": "pyramid height"
+	  }
+	],
+	"verify": {
+	  "mode": "file",
+	  "output": ["data", "result"],
+	  "fuzzy": true
+	}
+}

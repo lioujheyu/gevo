@@ -1,0 +1,21 @@
+{
+	"binary": "needle",
+	"kernels": ["needle_cuda_shared_1", "needle_cuda_shared_2"],
+	"args": [
+	  {
+		  "variability": "list",
+		  "value": [256, 2048],
+		  "desc": "matrix size in square"
+		},
+		{
+		  "variability": "list",
+		  "value": [3, 10],
+		  "desc": "penality"
+		}
+	],
+	"verify": {
+	  "mode": "file",
+	  "output": ["result"],
+	  "fuzzy": true
+	}
+}

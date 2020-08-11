@@ -1,0 +1,23 @@
+{
+	"binary": "heartwall",
+	"kernels": ["kernel"],
+	"args": [
+	  {
+		"variability": "list",
+		"value": ["../../data/heartwall/test.avi"],
+		"desc": "file"
+	  },
+	  {
+		"variability": "list",
+		"value": [2, 19, 104],
+		"desc": "num of framw"
+	  }
+	],
+	"verify": {
+	  "mode": "file",
+	  "output": [
+	    "result.txt"
+	  ],
+	  "fuzzy": true
+	}
+}

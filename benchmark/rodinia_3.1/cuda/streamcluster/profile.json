@@ -1,0 +1,56 @@
+{
+	"binary": "sc_gpu",
+	"kernels": ["kernel_compute_cost"],
+	"args": [
+	  {
+		  "variability": "list",
+		  "value": [10],
+		  "desc": "Min. number of centers allowed"
+		},
+		{
+		  "variability": "list",
+		  "value": [20],
+		  "desc": "Max. number of centers allowed"
+		},
+		{
+		  "variability": "list",
+		  "value": [16, 256],
+		  "desc": "Dimension of each data point"
+		},
+		{
+		  "variability": "list",
+		  "value": [256, 4467],
+		  "desc": "Number of data points"
+		},
+		{
+		  "variability": "list",
+		  "value": [65536],
+		  "desc": "Number of data points to handle per step"
+		},
+		{
+		  "variability": "list",
+		  "value": [1000],
+		  "desc": "Maximum number of intermediate centers"
+		},
+		{
+		  "variability": "list",
+		  "value": ["none"],
+		  "desc": "Input file"
+		},
+		{
+		  "variability": "list",
+		  "value": ["output.txt"],
+		  "desc": "Output file"
+		},
+		{
+		  "variability": "list",
+		  "value": [1],
+		  "desc": "Number of threads to use"
+		}
+	],
+	"verify": {
+	  "mode": "file",
+	  "output": ["output.txt"],
+	  "fuzzy": true
+	}
+}

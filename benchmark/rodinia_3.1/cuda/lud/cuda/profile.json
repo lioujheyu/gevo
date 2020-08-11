@@ -1,0 +1,22 @@
+{
+	"binary": "lud_cuda",
+	"kernels": ["lud_diagonal", "lud_perimeter", "lud_internal"],
+	"args": [
+	  {
+		"variability": "list",
+		"value": ["-s", "-i"],
+		"desc": "dimension size"
+	  },
+	  {
+		"variability": "list",
+		"value": ["1024", "../../../data/lud/256.dat"],
+		"desc": "dimension size",
+		"bond": [0]
+	  }
+	],
+	"verify": {
+	  "mode": "file",
+	  "output": ["output"],
+	  "fuzzy": true
+	}
+}
