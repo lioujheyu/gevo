@@ -8,6 +8,7 @@ import filecmp
 from io import StringIO
 from itertools import cycle
 
+import pycuda.driver as cuda
 from deap import creator
 from deap import base
 from deap import tools
@@ -55,11 +56,18 @@ if __name__ == '__main__':
 
     desc = input("Dump which variant? ")
     key = eval(desc)
-    ind = irind.llvmIRrep(initSrcEnc, edits=pop[key])
+
+    # Detect GPU property
+    cuda.init()
+    # TODO: check if there are multiple GPUs.
+    SM_MAJOR, SM_MINOR = cuda.Device(0).compute_capability()
+    mgpu = 'sm_' + str(SM_MAJOR) + str(SM_MINOR)
+
+    ind = irind.llvmIRrep(initSrcEnc, mgpu, edits=pop[key])
     ind.update_from_edits()
     with open("dump.ll", 'w') as f:
         f.write(ind.srcEnc.decode())
     with open("dump.edit", 'w') as f:
         print(ind.edits, file=f)
-    ind.ptx('a.ptx')
-    print("Generate dump.ll and a.ptx")
+    ind.ptx('gevo.ptx')
+    print("Generate dump.ll and gevo.ptx")

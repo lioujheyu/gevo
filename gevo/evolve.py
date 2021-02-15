@@ -4,6 +4,7 @@ import subprocess
 import random
 import csv
 import json
+import pickle
 import pathlib
 import sys
 import filecmp
@@ -27,6 +28,9 @@ from deap import creator
 from deap import tools
 import pptx
 import signal, psutil
+# from tqdm import tqdm
+from rich import print
+import pycuda.driver as cuda
 
 from gevo import irind
 from gevo.irind import llvmMutateWrap
@@ -38,9 +42,7 @@ lock = Lock()
 
 class evolution:
     # Parameters
-    mutLogFile = open('mut_stat.log', 'w')
-    mutDistFile = open('mut_dist.csv', 'w')
-    cudaPTX = 'a.ptx'
+    cudaPTX = 'gevo.ptx'
     editFitMap = {}
 
     # Content
@@ -84,7 +86,7 @@ class evolution:
                     self.golden.append(golden_filename)
 
     def __init__(self, kernel, bin, profile, mutop, timeout=30, fitness='time', popsize=128,
-                 llvm_src_filename='cuda-device-only-kernel.ll',
+                 llvm_src_filename='cuda-device-only-kernel.ll', use_fitness_map=True,
                  CXPB=0.8, MUPB=0.1, err_rate=0.01):
         self.CXPB = CXPB
         self.MUPB = MUPB
@@ -94,6 +96,7 @@ class evolution:
         # self.appArgs = "" if args is None else args
         self.timeout = timeout
         self.fitness_function = fitness
+        self.use_fitness_map = use_fitness_map
         self.popsize = popsize
         self.mutop = mutop.split(',')
 
@@ -106,7 +109,13 @@ class evolution:
 
         self.verifier = profile['verify']
 
-        # tools initialization
+        # Tools initialization
+        # Detect GPU property
+        cuda.init()
+        # TODO: check if there are multiple GPUs.
+        SM_MAJOR, SM_MINOR = cuda.Device(0).compute_capability()
+        self.mgpu = 'sm_' + str(SM_MAJOR) + str(SM_MINOR)
+
         # Minimize both performance and error
         creator.create("FitnessMin", base.Fitness, weights=(-1.0, -1.0))
         creator.create("Individual", irind.llvmIRrep, fitness=creator.FitnessMin)
@@ -116,7 +125,7 @@ class evolution:
         self.toolbox.register('mate', self.cxOnePointLLVM)
         # self.toolbox.register('select', tools.selDoubleTournament, fitness_size=2, parsimony_size=1.4, fitness_first=True)
         self.toolbox.register('select', tools.selNSGA2)
-        self.toolbox.register('individual', creator.Individual, srcEnc=self.initSrcEnc)
+        self.toolbox.register('individual', creator.Individual, srcEnc=self.initSrcEnc, mgpu=self.mgpu)
         self.toolbox.register('population', tools.initRepeat, list, self.toolbox.individual)
         # Decorate the variation operators
         self.toolbox.decorate("mate", self.history.decorator)
@@ -131,7 +140,7 @@ class evolution:
         self.logbook.header = "gen", "evals", "min", "max"
 
         # Set up testcase
-        self.origin = creator.Individual(self.initSrcEnc)
+        self.origin = creator.Individual(self.initSrcEnc, self.mgpu)
         self.origin.ptx(self.cudaPTX)
         arg_array = [[]]
         for i, arg in enumerate(profile['args']):
@@ -299,7 +308,7 @@ class evolution:
             if rc < 0:
                 continue
 
-            test_ind = creator.Individual(self.initSrcEnc)
+            test_ind = creator.Individual(self.initSrcEnc, self.mgpu)
             test_ind.edits[:] = individual.edits + [editUID]
             test_ind.rearrage()
             if test_ind.update_from_edits() == False:
@@ -343,10 +352,10 @@ class evolution:
             cmd1 = irind.rearrage(cmd1)
             cmd2 = irind.rearrage(cmd2)
 
-            child1 = creator.Individual(self.initSrcEnc)
+            child1 = creator.Individual(self.initSrcEnc, self.mgpu)
             child1.edits = list(cmd1)
             child1.update_from_edits(sweepEdits=False)
-            child2 = creator.Individual(self.initSrcEnc)
+            child2 = creator.Individual(self.initSrcEnc, self.mgpu)
             child2.edits = list(cmd2)
             child2.update_from_edits(sweepEdits=False)
 
@@ -472,9 +481,10 @@ class evolution:
     def evaluate(self, individual):
         # first to check whether we can find the same entry in the editFitmap
         editkey = individual.key()
-        if editkey in self.editFitMap:
-            print('r', end='', flush=True)
-            return self.editFitMap[editkey]
+        if self.use_fitness_map is True:
+            if editkey in self.editFitMap:
+                print('r', end='', flush=True)
+                return self.editFitMap[editkey]
 
         # link
         try:
@@ -483,7 +493,7 @@ class evolution:
             self.editFitMap[editkey] = (None, None)
             return None, None
 
-        with open('a.ll', 'w') as f:
+        with open('gevo.ll', 'w') as f:
             f.write(individual.srcEnc.decode())
 
         fits = []
@@ -573,6 +583,8 @@ class evolution:
         print(self.logbook.stream)
 
         self.updateSlideFromPlot()
+        self.mutLogFile = open('mut_stat.log', 'w')
+        self.mutDistFile = open('mut_dist.csv', 'w')
         self.mutLog()
         minExecTime = record["min"][0]
 
@@ -601,6 +613,8 @@ class evolution:
                 f.write(paretofGen[0][0].srcEnc.decode())
             with open("g{}_maxerr.edit".format(self.generation), 'w') as f:
                 print(paretofGen[0][0].edits, file=f)
+            with open("editmap.pickle", 'wb') as emfile:
+                pickle.dump(self.editFitMap, emfile)
 
             self.generation = self.generation + 1
 

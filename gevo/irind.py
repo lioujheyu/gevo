@@ -41,7 +41,7 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
             continue
         result = re.search('(\w+) (U[0-9.irsmxOP]+)(,([UAC][0-9.irsmx]+))?', line)
 
-        if result == None:
+        if result is None:
             print(proc.stderr.decode(), file=sys.stderr)
             with open('error.ll', 'w') as f:
                 f.write(proc.stdout.decode())
@@ -101,8 +101,15 @@ def update_from_edits(idx, ind, resultList):
         ind.update(proc.stdout)
         resultList[idx] = True
 
+def serialize_edits_to_str(edits):
+    outstr = "+".join([";".join(["{} {}".format(edit[0], edit[1]) for edit in editG]) for editG in edits ])
+    return outstr
+
 class llvmIRrep():
-    def __init__(self, srcEnc, edits=None):
+    def __init__(self, srcEnc, mgpu, edits=None, mattr="+ptx70"):
+        # default compilation argument to Nvidia pascal architecture.
+        self.mgpu = mgpu
+        self.mattr = mattr
         self.srcEnc = srcEnc
         if edits is None:
             self.edits = []
@@ -127,6 +134,11 @@ class llvmIRrep():
             return None
         return [arg for editG in self.edits for edit in editG for arg in edit]
 
+    def serialize_edits_to_str(self):
+        outstr = "+".join([";".join(["{} {}".format(edit[0], edit[1]) for edit in editG]) for editG in self.edits ])
+        return outstr
+
+
     def update_linesize(self):
         try:
             readline_proc = subprocess.run(['llvm-mutate', '-I'],
@@ -145,7 +157,7 @@ class llvmIRrep():
         self.update_linesize()
 
     def update_from_edits(self, sweepEdits=False):
-        if sweepEdits == False:
+        if sweepEdits is False:
             proc = subprocess.run(['llvm-mutate', '--not_use_result'] + self.serialize_edits(),
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE,
@@ -184,11 +196,11 @@ class llvmIRrep():
         self.edits = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd + x_cmd + op_cmd
 
     def ptx(self, outf):
-        proc = subprocess.run(['llc', "-march=nvptx64", "-mcpu=sm_60", "-mattr=+ptx60", '-o', outf],
+        proc = subprocess.run(['llc', "-march=nvptx64", "-mcpu="+self.mgpu, "-mattr="+self.mattr, '-o', outf],
                               stdout=subprocess.PIPE,
                               input=self.srcEnc)
 
-        if proc.returncode is not 0:
+        if proc.returncode != 0:
             print(proc.stderr)
             print(self.edits)
             raise Exception('llc error')

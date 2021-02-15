@@ -95,17 +95,21 @@ class BuildExt(build_ext):
 
 setup(
     name='gevo',
-    version='1.0.1',
-    python_requires='>=3.5',
+    version='1.1.1',
+    python_requires='>=3.6.1',
     description='Optimize CUDA kernel code using Evolutionary Computation',
     author='Jhe-Yu Liou',
     author_email='lioujheyu@gmail.com',
-    url='https://github.com/lioujheyu/cuda_evolve',
+    url='https://github.com/lioujheyu/gevo',
     install_requires=[
         'pybind11>=2.2',
         'deap>=1.2',
         'matplotlib>=2.1',
         'python-pptx>=0.6',
+        'psutil',
+        'rich>=9.5',
+        'pandas',
+        'pycuda'
     ],
     ext_package='gevo',
     ext_modules=ext_modules,
@@ -118,6 +122,8 @@ setup(
         'bin/gevo-analyze',
         'bin/gevo-evaluate',
         'bin/gevo-stage-analyze',
+        'bin/gevo-explore',
+        'bin/gevo-reduce',
     ],
     zip_safe=False,
     classifiers=[

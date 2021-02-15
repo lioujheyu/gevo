@@ -12,13 +12,14 @@ from itertools import cycle
 from deap import creator
 from deap import base
 from deap import tools
+import pycuda.driver as cuda
 
 from gevo import irind
 from gevo.evolve import evolution
 
 class program(evolution):
     # Parameters
-    cudaPTX = 'a.ptx'
+    cudaPTX = 'gevo.ptx'
 
     def __init__(self, kernel, bin, profile, timeout=30, fitness='time',
                  llvm_src_filename='cuda-device-only-kernel.ll', err_rate=0.01):
@@ -38,14 +39,19 @@ class program(evolution):
 
         self.verifier = profile['verify']
 
+        # Detect GPU property
+        cuda.init()
+        # TODO: check if there are multiple GPUs.
+        SM_MAJOR, SM_MINOR = cuda.Device(0).compute_capability()
+        self.mgpu = 'sm_' + str(SM_MAJOR) + str(SM_MINOR)
         creator.create("FitnessMin", base.Fitness, weights=(-1.0, -1.0))
         creator.create("Individual", irind.llvmIRrep, fitness=creator.FitnessMin)
         self.toolbox = base.Toolbox()
-        self.toolbox.register('individual', creator.Individual, srcEnc=self.initSrcEnc)
+        self.toolbox.register('individual', creator.Individual, srcEnc=self.initSrcEnc, mgpu=self.mgpu)
         self.toolbox.register('population', tools.initRepeat, list, self.toolbox.individual)
 
         # Set up testcase
-        self.origin = creator.Individual(self.initSrcEnc)
+        self.origin = creator.Individual(self.initSrcEnc, self.mgpu)
         self.origin.ptx(self.cudaPTX)
         arg_array = [[]]
         for i, arg in enumerate(profile['args']):
@@ -88,14 +94,10 @@ class program(evolution):
             print("File {} does not exist".format(llvm_file))
             exit(1)
 
-        individual = creator.Individual(llvmSrcEnc)
+        individual = creator.Individual(llvmSrcEnc, self.mgpu)
 
         # link
-        try:
-            individual.ptx(self.cudaPTX)
-        except:
-            self.editFitMap[editkey] = (None, None)
-            return None, None
+        individual.ptx(self.cudaPTX)
 
         with open('a.ll', 'w') as f:
             f.write(individual.srcEnc.decode())

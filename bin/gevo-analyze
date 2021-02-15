@@ -3,86 +3,39 @@ import argparse
 import subprocess
 import json
 import sys
-import csv
-import filecmp
-from io import StringIO
-from itertools import cycle
+import logging
+import ast
 
-from deap import creator
-from deap import base
-from deap import tools
+from rich.logging import RichHandler
 
-from gevo import irind
 from gevo.evolve import evolution
 
-class program(evolution):
-    # Parameters
-    log = open('debug_log', 'w')
-    cudaPTX = 'a.ptx'
+logging.basicConfig(format="%(message)s" ,level="NOTSET" ,handlers=[RichHandler()])
+log=logging.getLogger("main")
 
+class program(evolution):
     def __init__(self, editf, kernel, bin, profile, timeout=30, fitness='time',
                  llvm_src_filename='cuda-device-only-kernel.ll', err_rate=0.01):
-        self.kernels = kernel
-        self.appBinary = bin
-        # self.appArgs = "" if args is None else args
-        self.timeout = timeout
-        self.fitness_function = fitness
-        self.err_rate = err_rate
+        super().__init__(
+            kernel=kernel,
+            bin=bin,
+            profile=profile,
+            timeout=timeout,
+            fitness=fitness,
+            err_rate=err_rate,
+            mutop='' )
 
         try:
             with open(editf, 'r') as f:
-                self.edits = eval(f.read())
-        except IOError:
-            print("Edit File {} does not exist".format(editf))
-            exit(1)
+                self.edits = ast.literal_eval(f.read())
+        except FileNotFoundError:
+            log.error(f"Edit File:{editf} cannot be found")
+            sys.exit(1)
 
-        try:
-            with open(llvm_src_filename, 'r') as f:
-                self.initSrcEnc = f.read().encode()
-        except IOError:
-            print("File {} does not exist".format(llvm_src_filename))
-            exit(1)
-
-        self.verifier = profile['verify']
-
-        creator.create("FitnessMin", base.Fitness, weights=(-1.0, -1.0))
-        creator.create("Individual", irind.llvmIRrep, fitness=creator.FitnessMin)
-        self.toolbox = base.Toolbox()
-        self.toolbox.register('individual', creator.Individual, srcEnc=self.initSrcEnc)
-        self.toolbox.register('population', tools.initRepeat, list, self.toolbox.individual)
-
-        # Set up testcase
-        self.origin = creator.Individual(self.initSrcEnc)
-        self.origin.ptx(self.cudaPTX)
-        arg_array = [[]]
-        for i, arg in enumerate(profile['args']):
-            if arg.get('bond', None) is None:
-                arg_array_next = [ e[:] for e in arg_array for _ in range(len(arg['value']))]
-                arg_array = arg_array_next
-                for e1, e2 in zip(arg_array, cycle(arg['value'])):
-                    e1.append(e2)
-            else:
-                for e in arg_array:
-                    bonded_arg = arg['bond'][0]
-                    bonded_idx = profile['args'][bonded_arg]['value'].index(e[bonded_arg])
-                    e.append(arg['value'][bonded_idx])
-
-        arg_array = [ [str(e) for e in args ] for args in arg_array ]
-
-        self.testcase = []
-        for i in range(len(arg_array)):
-            self.testcase.append( self._testcase(self, i, kernel, bin, profile['verify']) )
-        print("evalute testcase as golden..", end='', flush=True)
-        for i, (tc, arg) in enumerate(zip(self.testcase, arg_array)):
-            tc.args = arg
-            print("{}..".format(i+1), end='', flush=True)
-            tc.evaluate()
-        print("done", flush=True)
-
-        fits = [ tc.fitness[0] for tc in self.testcase]
-        errs = [ tc.fitness[1] for tc in self.testcase]
-        self.origin.fitness.values = (sum(fits)/len(fits), max(errs))
-        print("Fitness of the original program: {}".format(self.origin.fitness.values))
+        self.origin.edits = self.edits
+        if self.origin.update_from_edits() is False:
+            raise Exception("Edit file cannot be compiled")
+        print("Fitness of the program with all edits: {}".format(self.evaluate(self.origin)))
 
     def edittest(self):
         self.pop = self.toolbox.population(n=len(self.edits))
@@ -119,6 +72,8 @@ if __name__ == '__main__':
 
     try:
         profile = json.load(open(args.profile_file))
+    except FileNotFoundError:
+        log.error(f"The profile:'{args.profile_file}' cannot be found")
     except:
         print(sys.exc_info())
         exit(-1)
@@ -145,4 +100,4 @@ if __name__ == '__main__':
     try:
         alyz.edittest()
     except KeyboardInterrupt:
-        subprocess.run(['killall', args.binary])
+        subprocess.run(['killall', profile['binary']])
