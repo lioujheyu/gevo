@@ -10,9 +10,9 @@ Python packages dependency is list in the `setup.py`, though they will be taken 
 
 ### NVIDIA CUDA 11
 
-While GEVO can work with any CUDA version so long LLVM compiler can compile it, certain benchmark (GPU-BSW) I test requires Nvidia intrinsic only supported by CUDA 11. Thus CUDA 11 is enforced for now.
+While GEVO can work with any CUDA version so long LLVM compiler can compile it, certain benchmark I test requires Nvidia intrinsic only supported by the most recent CUDA. Thus CUDA 11 is enforced for now.
 
-Note: Since 2018.8, nvidia driver 418 and beyond has a profiling permission restriction. Please refer to [this nvidia document](https://developer.nvidia.com/nvidia-development-tools-solutions-err_nvgpuctrperm-permission-issue-performance-counters)
+:exclamation: Note: Since 2018.8, nvidia driver 418 and beyond has a profiling permission restriction. Please refer to [this nvidia document](https://developer.nvidia.com/nvidia-development-tools-solutions-err_nvgpuctrperm-permission-issue-performance-counters)
 and [this nvidia forum thread](https://forums.developer.nvidia.com/t/nvprof-warning-the-user-does-not-have-permission-to-profile-on-the-target-device/72374/6)
 for how to lift the restriction for `nvprof`, which is the profiling tool GEVO use to measure the CUDA kernel runtime and power comsumption.
 
