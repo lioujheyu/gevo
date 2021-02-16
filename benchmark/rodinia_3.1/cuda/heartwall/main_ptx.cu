@@ -636,7 +636,7 @@ int main(int argc, char *argv []){
 	unsigned int err;
 	CUmodule module;
     CUfunction kernel;
-	err = cuModuleLoad(&module, "a.ptx");
+	err = cuModuleLoad(&module, "gevo.ptx");
 	err = cuModuleGetFunction(&kernel, module, "_Z6kernelv");
 
 	size_t size;

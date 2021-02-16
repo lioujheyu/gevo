@@ -547,7 +547,7 @@ int main(int argc, char** argv)
 		delete[] h_normals;
 	}
 
-	checkCudaErrors(cuModuleLoad(&module, "a.ptx"));
+	checkCudaErrors(cuModuleLoad(&module, "gevo.ptx"));
 	// Create arrays and set initial conditions
 	float* variables = alloc<float>(nelr*NVAR);
 	initialize_variables(nelr, variables);

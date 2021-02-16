@@ -158,7 +158,7 @@ void runTest( int argc, char** argv)
   	err = cuInit(0);
 	CUmodule module;
   	CUfunction kernel1, kernel2;
-  	err = cuModuleLoad(&module, "a.ptx");
+  	err = cuModuleLoad(&module, "gevo.ptx");
 	err = cuModuleGetFunction(&kernel1, module, "_Z20needle_cuda_shared_1PiS_iiii");
 	err = cuModuleGetFunction(&kernel2, module, "_Z20needle_cuda_shared_2PiS_iiii");
 

@@ -737,7 +737,7 @@ void particleFilter(unsigned char * I, int IszX, int IszY, int Nfr, int * seed, 
     err = cuInit(0);
 	CUmodule module;
     CUfunction likelihood_kernel, sum_kernel, normalize_weights_kernel, find_index_kernel;
-    err = cuModuleLoad(&module, "a.ptx");
+    err = cuModuleLoad(&module, "gevo.ptx");
 	err = cuModuleGetFunction(&likelihood_kernel, module, "_Z17likelihood_kernelPdS_S_S_S_PiS0_S_PhS_S_iiiiiiS0_S_");
     err = cuModuleGetFunction(&sum_kernel, module, "_Z10sum_kernelPdi");
     err = cuModuleGetFunction(&normalize_weights_kernel, module, "_Z24normalize_weights_kernelPdiS_S_S_Pi");

@@ -380,7 +380,7 @@ void ForwardSub()
 					 &t
                      };
 
-	err = cuModuleLoad(&module, "a.ptx");
+	err = cuModuleLoad(&module, "gevo.ptx");
 	err = cuModuleGetFunction(&kernel, module, "_Z4Fan1PfS_ii");
 	err = cuModuleGetFunction(&kernel2, module, "_Z4Fan2PfS_S_iii");
 

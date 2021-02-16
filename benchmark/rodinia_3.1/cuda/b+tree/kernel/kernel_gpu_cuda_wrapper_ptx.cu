@@ -225,7 +225,7 @@ kernel_gpu_cuda_wrapper(record *records,
 					&keysD,
                     &ansD
                     };
-	err = cuModuleLoad(&module, "a.ptx");
+	err = cuModuleLoad(&module, "gevo.ptx");
 	err = cuModuleGetFunction(&kernel, module, "findK");
 
 
@@ -548,7 +548,7 @@ kernel_gpu_cuda_wrapper_2(	knode *knodes,
 					&ansDStart,
 					&ansDLength
                     };
-	err = cuModuleLoad(&module, "a.ptx");
+	err = cuModuleLoad(&module, "gevo.ptx");
 	err = cuModuleGetFunction(&kernel, module, "findRangeK");
 
 	//======================================================================================================================================================150

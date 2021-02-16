@@ -246,7 +246,7 @@ int compute_tran_temp(float *MatrixPower,float *MatrixTemp[2], int col, int row,
         err = cuInit(0);
 	CUmodule module;
         CUfunction kernel;
-        err = cuModuleLoad(&module, "a.ptx");
+        err = cuModuleLoad(&module, "gevo.ptx");
 	err = cuModuleGetFunction(&kernel, module, "_Z14calculate_tempiPfS_S_iiiiffffff");
 
 	cudaProfilerStart();

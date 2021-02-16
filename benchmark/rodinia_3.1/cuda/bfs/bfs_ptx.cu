@@ -204,7 +204,7 @@ void BFSGraph( int argc, char** argv)
                      &no_of_nodes
                      };
 
-	err = cuModuleLoad(&module, "a.ptx");
+	err = cuModuleLoad(&module, "gevo.ptx");
 	err = cuModuleGetFunction(&kernel, module, "_Z6KernelP4NodePiPbS2_S2_S1_i");
 	err = cuModuleGetFunction(&kernel2, module, "_Z7Kernel2PbS_S_S_i");
 

@@ -155,7 +155,7 @@ int main(int argc, char* argv[])
   err = cuInit(0);
 	CUmodule module;
   CUfunction kernel;
-  err = cuModuleLoad(&module, "a.ptx");
+  err = cuModuleLoad(&module, "gevo.ptx");
 	err = cuModuleGetFunction(&kernel, module, "_Z6euclidP7latLongPfiff");
   void *args[] = {&d_locations, &d_distances, &numRecords, &lat, &lng};
 

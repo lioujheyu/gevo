@@ -199,7 +199,7 @@ int calc_path(int *gpuWall, int *gpuResult[2], int rows, int cols, \
     err = cuInit(0);
 	CUmodule module;
     CUfunction kernel;
-    err = cuModuleLoad(&module, "a.ptx");
+    err = cuModuleLoad(&module, "gevo.ptx");
 	err = cuModuleGetFunction(&kernel, module, "_Z14dynproc_kerneliPiS_S_iiii");
     cudaProfilerStart();
         int src = 1, dst = 0;

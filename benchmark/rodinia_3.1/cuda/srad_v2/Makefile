@@ -11,7 +11,7 @@ SRC = srad_kernel.cu
 all: srad
 
 clean:
-	rm -rf *.o srad a.ptx cuda-device-only-kernel.ll
+	rm -rf *.o srad gevo.ptx cuda-device-only-kernel.ll
 
 srad: srad_ptx.cu
 	$(CC) $(CFLAGS) -O3 $< -o $@ -I$(INCLUDE) -L$(CUDA_LIB_DIR) -ldl -lrt -pthread -lcudart_static -lcuda -lm
@@ -22,9 +22,9 @@ srad_nvcc: srad.cu
 llvmir-noopt: $(SRC)
 	$(CC) $(CFLAGS) -g -O0 --cuda-device-only -S -emit-llvm $< -o cuda-device-only-kernel.ll
 	cat cuda-device-only-kernel.ll | llvm-mutate -n -o cuda-device-only-kernel.ll
-	llc -march=nvptx64 -mcpu=sm_60 -mattr=+ptx60 cuda-device-only-kernel.ll -o a.ptx
+	llc -march=nvptx64 -mcpu=sm_60 -mattr=+ptx60 cuda-device-only-kernel.ll -o gevo.ptx
 
 llvmir-opt: $(SRC)
 	$(CC) $(CFLAGS) -O3 --cuda-device-only -S -emit-llvm $< -o cuda-device-only-kernel.ll
 	cat cuda-device-only-kernel.ll | llvm-mutate -n -o cuda-device-only-kernel.ll
-	llc -march=nvptx64 -mcpu=sm_60 -mattr=+ptx60 cuda-device-only-kernel.ll -o a.ptx
+	llc -march=nvptx64 -mcpu=sm_60 -mattr=+ptx60 cuda-device-only-kernel.ll -o gevo.ptx

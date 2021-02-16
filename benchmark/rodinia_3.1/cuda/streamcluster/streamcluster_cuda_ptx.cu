@@ -251,7 +251,7 @@ float pgain( long x, Points *points, float z, long int *numcenters, int kmax, bo
 	// CUfunction kernel;
 
 	if (module == NULL) {
-  		err = cuModuleLoad(&module, "a.ptx");
+  		err = cuModuleLoad(&module, "gevo.ptx");
 		err = cuModuleGetFunction(&kernel, module, "_Z19kernel_compute_costiilP5PointiiPfS1_PiPb");
 	}
 	void *args[] = {

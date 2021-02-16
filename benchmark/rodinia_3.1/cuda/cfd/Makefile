@@ -25,12 +25,12 @@ clean:
 llvmir-noopt: euler3d.cu
 	$(CC) $(NVCC_FLAG) -O0 --cuda-device-only -S -emit-llvm $< -o cuda-device-only-kernel.ll -I$(CUDA_SDK_PATH)/common/inc
 	cat cuda-device-only-kernel.ll | llvm-mutate -n -o cuda-device-only-kernel.ll
-	llc -march=nvptx64 -mcpu=sm_60 -mattr=+ptx60 cuda-device-only-kernel.ll -o a.ptx
+	llc -march=nvptx64 -mcpu=sm_60 -mattr=+ptx60 cuda-device-only-kernel.ll -o gevo.ptx
 
 llvmir-opt: euler3d.cu
 	$(CC) $(NVCC_FLAG) -O3 --cuda-device-only -S -emit-llvm $< -o cuda-device-only-kernel.ll -I$(CUDA_SDK_PATH)/common/inc
 	cat cuda-device-only-kernel.ll | llvm-mutate -n -o cuda-device-only-kernel.ll
-	llc -march=nvptx64 -mcpu=sm_60 -mattr=+ptx60 cuda-device-only-kernel.ll -o a.ptx
+	llc -march=nvptx64 -mcpu=sm_60 -mattr=+ptx60 cuda-device-only-kernel.ll -o gevo.ptx
 
 nvcc: euler3d.cu
 	nvcc -Xptxas -dlcm=cg $(KERNEL_DIM) -I$(CUDA_SDK_PATH)/common/inc -I$(CUDA_DIR)/include -arch=sm_60 -O3 $< -o euler3d

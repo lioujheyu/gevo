@@ -144,7 +144,7 @@ runTest( int argc, char** argv)
   	err = cuInit(0);
 	CUmodule module;
   	CUfunction kernel1, kernel2;
-  	err = cuModuleLoad(&module, "a.ptx");
+  	err = cuModuleLoad(&module, "gevo.ptx");
 	err = cuModuleGetFunction(&kernel1, module, "_Z11srad_cuda_1PfS_S_S_S_S_iif");
 	err = cuModuleGetFunction(&kernel2, module, "_Z11srad_cuda_2PfS_S_S_S_S_iiff");
 

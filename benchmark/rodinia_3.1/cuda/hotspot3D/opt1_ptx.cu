@@ -89,7 +89,7 @@ void hotspot_opt1(float *p, float *tIn, float *tOut,
     unsigned int err;
 	CUmodule module;
     CUfunction kernel;
-    err = cuModuleLoad(&module, "a.ptx");
+    err = cuModuleLoad(&module, "gevo.ptx");
 	err = cuModuleGetFunction(&kernel, module, "_Z11hotspotOpt1PfS_S_fiiifffffff");
 
     long long start = get_time();

@@ -34,12 +34,12 @@ clean:
 llvmir-noopt: kernel/kernel_gpu_cuda_wrapper.cu
 	$(CC) $(CUDA_FLAG) -O0 --cuda-device-only -S -emit-llvm $^ -o cuda-device-only-kernel.ll
 	cat cuda-device-only-kernel.ll | llvm-mutate -n -o cuda-device-only-kernel.ll
-	llc -march=nvptx64 -mcpu=sm_60 -mattr=+ptx60 cuda-device-only-kernel.ll -o a.ptx
+	llc -march=nvptx64 -mcpu=sm_60 -mattr=+ptx60 cuda-device-only-kernel.ll -o gevo.ptx
 
 llvmir-opt: kernel/kernel_gpu_cuda_wrapper.cu
 	$(CC) $(CUDA_FLAG) -O3 --cuda-device-only -S -emit-llvm $^ -o cuda-device-only-kernel.ll
 	cat cuda-device-only-kernel.ll | llvm-mutate -n -o cuda-device-only-kernel.ll
-	llc -march=nvptx64 -mcpu=sm_60 -mattr=+ptx60 cuda-device-only-kernel.ll -o a.ptx
+	llc -march=nvptx64 -mcpu=sm_60 -mattr=+ptx60 cuda-device-only-kernel.ll -o gevo.ptx
 
 # b+tree.out:	./main.o \
 # 		./kernel/kernel_gpu_cuda_wrapper.o \

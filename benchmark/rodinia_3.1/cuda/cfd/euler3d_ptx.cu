@@ -496,7 +496,7 @@ int main(int argc, char** argv)
 		float3 h_ff_flux_contribution_density_energy;
 		compute_flux_contribution(h_ff_variable[VAR_DENSITY], h_ff_momentum, h_ff_variable[VAR_DENSITY_ENERGY], ff_pressure, ff_velocity, h_ff_flux_contribution_momentum_x, h_ff_flux_contribution_momentum_y, h_ff_flux_contribution_momentum_z, h_ff_flux_contribution_density_energy);
 
-		checkCudaErrors(cuModuleLoad(&module, "a.ptx"));
+		checkCudaErrors(cuModuleLoad(&module, "gevo.ptx"));
 		// copy far field conditions to the gpu
 		// checkCudaErrors( cudaMemcpyToSymbol(ff_variable,          h_ff_variable,          NVAR*sizeof(float)) );
 		CUdeviceptr ff_variable;

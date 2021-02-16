@@ -24,9 +24,9 @@ clean: $(SRC)
 llvmir-noopt: opt1.cu
 	$(CC) $(CFLAGS) -O0 --cuda-device-only -S -emit-llvm $< -o cuda-device-only-kernel.ll
 	cat cuda-device-only-kernel.ll | llvm-mutate -n -o cuda-device-only-kernel.ll
-	llc cuda-device-only-kernel.ll -o a.ptx
+	llc cuda-device-only-kernel.ll -o gevo.ptx
 
 llvmir-opt: opt1.cu
 	$(CC) $(CFLAGS) -O3 --cuda-device-only -S -emit-llvm $< -o cuda-device-only-kernel.ll
 	cat cuda-device-only-kernel.ll | llvm-mutate -n -o cuda-device-only-kernel.ll
-	llc cuda-device-only-kernel.ll -o a.ptx
+	llc cuda-device-only-kernel.ll -o gevo.ptx

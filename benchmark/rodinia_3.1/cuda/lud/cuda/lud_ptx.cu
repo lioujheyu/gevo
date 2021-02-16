@@ -238,7 +238,7 @@ void lud_cuda(float *m, int matrix_dim)
   err = cuInit(0);
 	CUmodule module;
   CUfunction lud_diagonal_kernel, lud_perimeter_kernel, lud_internal_kernel;
-  err = cuModuleLoad(&module, "a.ptx");
+  err = cuModuleLoad(&module, "gevo.ptx");
 	err = cuModuleGetFunction(&lud_diagonal_kernel, module, "_Z12lud_diagonalPfii");
   err = cuModuleGetFunction(&lud_perimeter_kernel, module, "_Z13lud_perimeterPfii");
   err = cuModuleGetFunction(&lud_internal_kernel, module, "_Z12lud_internalPfii");
