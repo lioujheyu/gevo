@@ -74,7 +74,9 @@ class evolution:
         def evaluate(self):
             # Since golden has been filled up, passing this testcase into resultcompare
             # won't compare anything which is exactly what we want.
-            self.fitness = self._evolution.execNVprofRetrive(self)
+            # Evaluate 3 times and get the minimum number
+            fitness = [ self._evolution.execNVprofRetrive(self) for i in range(3)]
+            self.fitness = (min([ value[0] for value in fitness ]), min([ value[1] for value in fitness ]))
             if None in self.fitness:
                 print(self.args)
                 raise Exception("Original binary execution error")
@@ -160,18 +162,21 @@ class evolution:
         self.testcase = []
         for i in range(len(arg_array)):
             self.testcase.append( self._testcase(self, i, kernel, bin, profile['verify']) )
-        print("evalute testcase as golden..", end='', flush=True)
+        print("Evalute testcase as golden..", end='', flush=True)
         for i, (tc, arg) in enumerate(zip(self.testcase, arg_array)):
             tc.args = arg
             print("{}..".format(i+1), end='', flush=True)
             tc.evaluate()
         print("done", flush=True)
 
-        fits = [ tc.fitness[0] for tc in self.testcase]
-        errs = [ tc.fitness[1] for tc in self.testcase]
-        self.origin.fitness.values = (sum(fits)/len(fits), max(errs))
+        self.ofits = [ tc.fitness[0] for tc in self.testcase]
+        self.oerrs = [ tc.fitness[1] for tc in self.testcase]
+        self.origin.fitness.values = (sum(self.ofits)/len(self.ofits), max(self.oerrs))
         self.editFitMap[None] = self.origin.fitness.values
-        print("Fitness of the original program: {}".format(self.origin.fitness.values))
+        print(f"Average fitness of the original program: ({self.origin.fitness.values[0]:.2f}, {self.origin.fitness.values[1]:.2f})")
+        print("Individual test cases:")
+        for fit, err in zip(self.ofits, self.oerrs):
+            print(f"\t({fit:.2f}, {err:.2f})")
 
     def updateSlideFromPlot(self):
         pffits = [ind.fitness.values for ind in self.paretof]
