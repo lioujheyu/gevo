@@ -3,18 +3,12 @@ import argparse
 import subprocess
 import json
 import sys
-import csv
-import filecmp
 import os
-from io import StringIO
-from itertools import cycle
 
 from deap import creator
-from deap import base
-from deap import tools
-import pycuda.driver as cuda
+from rich.table import Table
+from rich import print as rprint
 
-from gevo import irind
 from gevo.evolve import evolution
 
 class program(evolution):
@@ -23,68 +17,15 @@ class program(evolution):
 
     def __init__(self, kernel, bin, profile, timeout=30, fitness='time',
                  llvm_src_filename='cuda-device-only-kernel.ll', err_rate=0.01):
-        self.kernels = kernel
-        self.appBinary = bin
-        # self.appArgs = "" if args is None else args
-        self.timeout = timeout
-        self.fitness_function = fitness
-        self.err_rate = err_rate
-
-        try:
-            with open(llvm_src_filename, 'r') as f:
-                self.initSrcEnc = f.read().encode()
-        except IOError:
-            print("File {} does not exist".format(llvm_src_filename))
-            exit(1)
-
-        self.verifier = profile['verify']
-
-        # Detect GPU property
-        cuda.init()
-        # TODO: check if there are multiple GPUs.
-        SM_MAJOR, SM_MINOR = cuda.Device(0).compute_capability()
-        self.mgpu = 'sm_' + str(SM_MAJOR) + str(SM_MINOR)
-        creator.create("FitnessMin", base.Fitness, weights=(-1.0, -1.0))
-        creator.create("Individual", irind.llvmIRrep, fitness=creator.FitnessMin)
-        self.toolbox = base.Toolbox()
-        self.toolbox.register('individual', creator.Individual, srcEnc=self.initSrcEnc, mgpu=self.mgpu)
-        self.toolbox.register('population', tools.initRepeat, list, self.toolbox.individual)
-
-        # Set up testcase
-        self.origin = creator.Individual(self.initSrcEnc, self.mgpu)
-        self.origin.ptx(self.cudaPTX)
-        arg_array = [[]]
-        for i, arg in enumerate(profile['args']):
-            if arg.get('bond', None) is None:
-                arg_array_next = [ e[:] for e in arg_array for _ in range(len(arg['value']))]
-                arg_array = arg_array_next
-                for e1, e2 in zip(arg_array, cycle(arg['value'])):
-                    e1.append(e2)
-            else:
-                for e in arg_array:
-                    bonded_arg = arg['bond'][0]
-                    bonded_idx = profile['args'][bonded_arg]['value'].index(e[bonded_arg])
-                    e.append(arg['value'][bonded_idx])
-
-        arg_array = [ [str(e) for e in args ] for args in arg_array ]
-
-        self.testcase = []
-        for i in range(len(arg_array)):
-            self.testcase.append( self._testcase(self, i, kernel, bin, profile['verify']) )
-        print("evalute testcase as golden..", end='', flush=True)
-        for i, (tc, arg) in enumerate(zip(self.testcase, arg_array)):
-            tc.args = arg
-            print("{}..".format(i+1), end='', flush=True)
-            tc.evaluate()
-        print("done", flush=True)
-
-        self.ofits = [ tc.fitness[0] for tc in self.testcase]
-        self.oerrs = [ tc.fitness[1] for tc in self.testcase]
-        self.origin.fitness.values = (sum(self.ofits)/len(self.ofits), max(self.oerrs))
-        print("Average Fitness of the original program: {}".format(self.origin.fitness.values[0]))
-        print("Individual test cases:")
-        for fit, err in zip(self.ofits, self.oerrs):
-            print("{}, {}".format(fit, err))
+        super().__init__(
+            kernel=kernel,
+            bin=bin,
+            profile=profile,
+            timeout=timeout,
+            fitness=fitness,
+            err_rate=err_rate,
+            mutop='',
+            use_fitness_map=False )
 
     def evaluate(self, llvm_file):
         try:
@@ -96,16 +37,25 @@ class program(evolution):
 
         individual = creator.Individual(llvmSrcEnc, self.mgpu)
 
+        # Need to retrive individual test case result which is why the built-in evluation function is not used
         # link
         individual.ptx(self.cudaPTX)
 
-        with open('a.ll', 'w') as f:
+        with open('gevo.ll', 'w') as f:
             f.write(individual.srcEnc.decode())
 
         fits = []
         errs = []
         for tc in self.testcase:
             fitness, err = self.execNVprofRetrive(tc)
+            if fitness is not None:
+                fitness2, err2 = self.execNVprofRetrive(tc)
+                fitness3, err3 = self.execNVprofRetrive(tc)
+                fitness = min([fitness, fitness2, fitness3])
+                err = min([err, err2, err3])
+            else:
+                print("Tested llvm program failed to execute")
+                exit(0)
 
             for res_file in self.verifier['output']:
                 if os.path.exists(res_file):
@@ -117,11 +67,11 @@ class program(evolution):
         max_err = max(errs)
         avg_fitness = sum(fits)/len(fits)
         # record the edits and the corresponding fitness in the map
-        print("Average Fitness of tested llvm program: {}, {}, {}".format(avg_fitness, max_err,
+        rprint("Average Fitness of tested llvm program: {}, {}, {}".format(avg_fitness, max_err,
             self.origin.fitness.values[0]/avg_fitness*100))
-        print("Individual test cases:")
+        rprint("Individual test cases:")
         for fit, err, ofit in zip(fits, errs, self.ofits):
-            print("{}, {}, {}".format(fit, err, ofit/fit*100))
+            rprint(f"({fit:.2f}, {err:.2f}), Improvement: {ofit/fit*100:.2f}")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Analyze the performance of mutation edits for CUDA kernel")
@@ -143,14 +93,6 @@ if __name__ == '__main__':
         print(sys.exc_info())
         exit(-1)
 
-    print("      Target CUDA program: {}".format(profile['binary']))
-    print("Args for the CUDA program:")
-    print("           Target kernels: {}".format(" ".join(profile['kernels'])))
-    print("       Evaluation Timeout: {}".format(args.timeout))
-    print("         Fitness function: {}".format(args.fitness_function))
-    print("      Tolerate Error Rate: {}".format(args.err_rate))
-    print("      Target LLVM-IR file: {}".format(args.llvm_file))
-
     alyz = program(
         kernel=profile['kernels'],
         bin=profile['binary'],
@@ -159,8 +101,20 @@ if __name__ == '__main__':
         fitness=args.fitness_function,
         err_rate=args.err_rate)
 
+    table = Table.grid()
+    table.add_column(justify="right", style="bold blue")
+    table.add_column()
+    table.add_row("Target CUDA program: ", profile['binary'])
+    tc_args = ""
     for tc in alyz.testcase:
-        print("\t{}".format(" ".join(tc.args)))
+        tc_args = tc_args + "{}".format(" ".join(tc.args)) + '\n'
+    table.add_row("Args for the CUDA program: ", tc_args)
+    table.add_row("Target kernels: ", " ".join(profile['kernels']))
+    table.add_row("Evaluation Timeout: ", str(args.timeout))
+    table.add_row("Fitness function: ", args.fitness_function)
+    table.add_row("Tolerate Error Rate: ", str(args.err_rate))
+    table.add_row("Target LLVM-IR file: ", args.llvm_file)
+    rprint(table)
 
     try:
         alyz.evaluate(args.llvm_file)
