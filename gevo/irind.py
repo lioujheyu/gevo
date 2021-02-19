@@ -105,6 +105,9 @@ def serialize_edits_to_str(edits):
     outstr = "+".join([";".join(["{} {}".format(edit[0], edit[1]) for edit in editG]) for editG in edits ])
     return outstr
 
+def edits_as_key(edits):
+    return tuple([edit for editG in edits for edit in editG])
+
 class llvmIRrep():
     def __init__(self, srcEnc, mgpu, edits=None, mattr="+ptx70"):
         # default compilation argument to Nvidia pascal architecture.
