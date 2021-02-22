@@ -107,7 +107,7 @@ setup(
         'matplotlib>=2.1',
         'python-pptx>=0.6',
         'psutil',
-        'rich>=9.5',
+        'rich>=9.11',
         'pandas',
         'pycuda'
     ],

@@ -8,6 +8,7 @@ import pickle
 import pathlib
 import sys
 import filecmp
+import logging
 import io
 import os
 import re
@@ -21,15 +22,21 @@ from threading import Lock
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-# import networkx as nx
+
 import numpy
+
 from deap import base
 from deap import creator
 from deap import tools
+
 import pptx
 import signal, psutil
-# from tqdm import tqdm
+
 from rich import print
+import rich.progress
+from rich.progress import Progress
+from rich.logging import RichHandler
+
 import pycuda.driver as cuda
 
 from gevo import irind
@@ -95,7 +102,6 @@ class evolution:
         self.err_rate = err_rate
         self.kernels = kernel
         self.appBinary = bin
-        # self.appArgs = "" if args is None else args
         self.timeout = timeout
         self.fitness_function = fitness
         self.use_fitness_map = use_fitness_map
@@ -163,11 +169,14 @@ class evolution:
         for i in range(len(arg_array)):
             self.testcase.append( self._testcase(self, i, kernel, bin, profile['verify']) )
         print("Evalute testcase as golden..", end='', flush=True)
-        for i, (tc, arg) in enumerate(zip(self.testcase, arg_array)):
-            tc.args = arg
-            print("{}..".format(i+1), end='', flush=True)
-            tc.evaluate()
-        print("done", flush=True)
+        with Progress("[Initializing GEVO] Evaluate original program with test cases",
+                      "({task.completed} / {task.total})",
+                      rich.progress.TimeElapsedColumn()) as progress:
+            task = progress.add_task("", total=len(arg_array))
+            for tc, arg in zip(self.testcase, arg_array):
+                tc.args = arg
+                tc.evaluate()
+                progress.update(task, advance=1)
 
         self.ofits = [ tc.fitness[0] for tc in self.testcase]
         self.oerrs = [ tc.fitness[1] for tc in self.testcase]
@@ -412,7 +421,7 @@ class evolution:
             # Unknown nvprof error
             if retcode != 0:
                 print(stderr.decode(), file=sys.stderr)
-                raise Exception('nvprof error')
+                raise Exception('Unknown nvprof error code:{}'.format(retcode))
         except subprocess.TimeoutExpired:
             # Sometimes terminating nvprof will not terminate the underlying cuda program
             # if that program is corrupted. So issue the kill command to those cuda app first
