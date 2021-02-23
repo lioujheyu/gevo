@@ -7,28 +7,27 @@ import subprocess
 from gevo.evolve import evolution
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Evolve CUDA kernel function")
-    parser.add_argument('-P', '--profile_file', type=str, required=True,
+    parser = argparse.ArgumentParser(description="Evolve CUDA kernel function",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('-P', '--profile_file', type=str, required=True, default=argparse.SUPPRESS,
         help="Specify the profile file that contains all application execution and testing information")
-    # parser.add_argument('-k', '--kernel', type=str,
-    #     help="Target kernel function of the given CUDA application. Use comma to separate kernels.")
-    parser.add_argument('-r', '--resume', type=int, default=-1,
-        help="Resume the process from genetating the population by reading stage/<RESUME>.json")
-    parser.add_argument('--pop_size', type=int, default=128,
+    parser.add_argument('-r', '--resume', type=int, default=-1, metavar="GEN_NUM",
+        help="Resume the process from genetating the population by reading \"stage/<GEN_NUM>.json\".\
+              No resume (start from scratch) if omit or value is smaller than 0")
+    parser.add_argument('--pop_size', type=int, default=128, metavar="N",
         help="Number of individual in the population. Default is 128.")
-    parser.add_argument('-t', '--timeout', type=int, default=30,
+    parser.add_argument('-t', '--timeout', type=int, default=30, metavar="SEC",
         help="The timeout period to evaluate the CUDA application")
     parser.add_argument('-fitf', '--fitness_function', type=str, default='time',
+        choices=['time', 'kernel_time', 'power'],
         help="What is the target fitness for the evolution. Default ot execution time. Can be changed to power")
-    parser.add_argument('--cxpb', type=float, default='0.8', help="Cross rate")
-    parser.add_argument('--mupb', type=float, default='0.1', help="Mutation rate")
-    parser.add_argument('--err_rate', type=float, default='0.01',
-        help="Allowed maximum relative error generate from mutant comparing to the origin")
+    parser.add_argument('--cxpb', type=float, default='0.8', metavar="RATE", help="Cross rate")
+    parser.add_argument('--mupb', type=float, default='0.1', metavar="RATE", help="Mutation rate")
+    parser.add_argument('--err_rate', type=float, default='0.01', metavar="RATE",
+        help="Allowed maximum relative error generate from mutant comparing to the origin. Range from 0 to 1")
     # cut, replace, insert, swap, move, operand replace, cache
-    parser.add_argument('--mutop', type=str, default='c,r,i,s,m,p',
-        help="Specify mutation operation to be enabled during evolution. Operation are separated by comma.")
-    # parser.add_argument('binary',help="Binary of the CUDA application", nargs='?', default='a.out')
-    # parser.add_argument('args',help="arguments for the application binary", nargs=argparse.REMAINDER)
+    parser.add_argument('--mutop', type=str, default='c,r,i,s,m,p', metavar="OP_STR",
+        help="Specify mutation operations to be enabled during evolution. Operation are separated by comma.")
     args = parser.parse_args()
 
     try:

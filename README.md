@@ -1,4 +1,8 @@
+
+
 # GEVO
+
+[![PyPI version](https://badge.fury.io/py/gevo.svg)](https://badge.fury.io/py/gevo)
 
 GEVO (Gpu optimization using EVOlutionary computation) is a tool for automatically discovering optimization opportunities and tuning the performance of GPU kernels in the LLVM representation. 
 
@@ -6,11 +10,11 @@ GEVO (Gpu optimization using EVOlutionary computation) is a tool for automatical
 
 ### Python 3.6.1 or above
 
-Python packages dependency is list in the `setup.py`, though they will be taken care by python pip.
+Python packages dependency is list in the `setup.py` and `pyproject.toml`, though they will be taken care by python pip.
 
 ### NVIDIA CUDA 11
 
-While GEVO can work with any CUDA version so long LLVM compiler can compile it, certain benchmark I test requires Nvidia intrinsic only supported by the most recent CUDA. Thus CUDA 11 is enforced for now.
+While GEVO can work with any CUDA version so long LLVM compiler can compile it, certain benchmark I test requires Nvidia intrinsic only supported by the most recent CUDA. Thus CUDA 11 is thus enforced.
 
 :exclamation: Note: Since 2018.8, nvidia driver 418 and beyond has a profiling permission restriction. Please refer to [this nvidia document](https://developer.nvidia.com/nvidia-development-tools-solutions-err_nvgpuctrperm-permission-issue-performance-counters)
 and [this nvidia forum thread](https://forums.developer.nvidia.com/t/nvprof-warning-the-user-does-not-have-permission-to-profile-on-the-target-device/72374/6)
@@ -52,4 +56,16 @@ The detail steps of preparing these files are under construction.
 gevo-evolve -P <the profile in json form> 
 ```
 
-This start the evolution with default parameters (population )
+This start the evolution with default parameters. Please use `--help` for more information including the default values for each argument.
+
+## Citation
+If this project helps your research, please cite the following paper in your publication.
+
+```
+@article{liou2020gevo,
+  author = {Liou, Jhe-Yu and Wang, Xiaodong and Forrest, Stephanie and Wu, Carole-Jean},
+  title = {GEVO: GPU Code Optimization Using Evolutionary Computation},
+  year = {2020},
+  journal = {ACM Trans. Archit. Code Optim.}
+}
+```
