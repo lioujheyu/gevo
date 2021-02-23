@@ -13,7 +13,7 @@ addons:
     - sourceline: 'deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-11 main'
       key_url: 'https://apt.llvm.org/llvm-snapshot.gpg.key'
     - sourceline: 'deb http://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64 /'
-      key_url: 'https://developer.download.nvidia.com/compute/cuda/repos/$distribution/x86_64/7fa2af80.pub'
+      key_url: 'https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/7fa2af80.pub'
     packages:
     - cmake
     - llvm-11-dev
