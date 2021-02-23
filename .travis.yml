@@ -16,5 +16,8 @@ addons:
     - cmake
     - llvm-11-dev
 
+before_install:
+  - git submodule init
+
 install:
   - pip install .
