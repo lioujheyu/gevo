@@ -22,31 +22,7 @@ LLVM 11 + CUDA 11.1 has been tested with current GEVO, even though LLVM 11 does 
 
 Usually, LLVM in the system package management system is much older than the current development. If you are using Ubuntu/Debian, please refer to ["LLVM nightly packages"](https://apt.llvm.org/) for how to install the most recent LLVM into the system. 
 
-GEVO relies on following llvm commands (`clang`, `clang++`, `opt`, `llvm-dis`) without specifying the version in the end. If there are multiple version of LLVM installed, make sure the default llvm commands are matched with the desired version. Otherwise, you need to manually soft-link or using linux command `alternative` to link the right LLVM commands. like the following using soft-link.
-
-```bash
-sudo ln -s /usr/local/bin/clang++-11 /usr/local/bin/clang++
-sudo ln -s /usr/local/bin/clang-11 /usr/local/bin/clang
-sudo ln -s /usr/local/bin/opt-11 /usr/local/bin/opt
-sudo ln -s /usr/local/bin/llvm-dis-11 /usr/local/bin/llvm-dis
-```
-
 ## Installation
-### **llvm-mutate**
-llvm-mutate is the tool under my development that GEVO use to manipulate LLVM-IR code.
-GEVO relies on a specific `cuda` branch of llvm-mutate to manipulate CUDA kernel represented in LLVM-IR. 
-
-```bash
-git clone https://github.com/lioujheyu/llvm-mutate
-cd llvm-mutate
-git checkout cuda
-mkdir build
-cd build
-cmake ../
-sudo make && make install
-```
-
-### Install **GEVO**
 Simply install GEVO from pypi using pip
 ```bash
 pip3 install --user gevo 
@@ -56,8 +32,8 @@ Or build manually
 ```bash
 git clone https://github.com/lioujheyu/gevo
 cd gevo
-python3 setup.py sdist bdist_wheel
-pip install dist/gevo-1.1.1-cp38-cp38-linux_x86_64.whl
+python3 -m build .
+pip install dist/gevo-1.2.1-<platform-specific-string>.whl
 ```
 
 ## Evolve a CUDA program from GEVO

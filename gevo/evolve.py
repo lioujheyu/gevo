@@ -556,6 +556,7 @@ class evolution:
                 stage = json.load(open(stageFileName))
                 allEdits = [entry['edits'] for entry in stage]
             except:
+                print(f"GEVO Error in loading stage file \"{stageFileName}\"")
                 print(sys.exc_info())
                 exit(1)
 
