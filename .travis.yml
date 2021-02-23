@@ -1,4 +1,4 @@
-sudo: required
+os: linux
 dist: bionic
 
 language: python
@@ -16,8 +16,9 @@ addons:
       key_url: 'https://developer.download.nvidia.com/compute/cuda/repos/ubuntu1804/x86_64/7fa2af80.pub'
     packages:
     - cmake
-    - llvm-11-dev
-    - cuda-cudart-dev-11-0
+    - llvm-10-dev
+    - cuda-cudart-dev-10-1
+    - cuda-core-10-1
 
 install:
   - pip install .
