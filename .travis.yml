@@ -27,3 +27,6 @@ before_install:
 
 install:
   - pip install .
+
+# No way to have a test in Travis CI due to lack of GPU
+script: echo

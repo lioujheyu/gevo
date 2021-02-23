@@ -13,7 +13,7 @@ except ImportError:
 
 setup(
     name='gevo',
-    version='1.2.1',
+    version='1.2.2',
     python_requires='>=3.6.1',
     description='Optimize CUDA kernel code using Evolutionary Computation',
     author='Jhe-Yu Liou',
