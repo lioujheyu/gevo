@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 
 import sys
+import os
+import codecs
+
 try:
     from skbuild import setup
 except ImportError:
@@ -11,9 +14,22 @@ except ImportError:
     )
     raise
 
+def read(rel_path):
+    here = os.path.abspath(os.path.dirname(__file__))
+    with codecs.open(os.path.join(here, rel_path), 'r') as fp:
+        return fp.read()
+
+def get_version(rel_path):
+    for line in read(rel_path).splitlines():
+        if line.startswith('__version__'):
+            delim = '"' if '"' in line else "'"
+            return line.split(delim)[1]
+    else:
+        raise RuntimeError("Unable to find version string.")
+
 setup(
     name='gevo',
-    version='1.2.2',
+    version=get_version("gevo/__init__.py"),
     python_requires='>=3.6.1',
     description='Optimize CUDA kernel code using Evolutionary Computation',
     author='Jhe-Yu Liou',
