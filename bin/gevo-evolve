@@ -4,6 +4,7 @@ import json
 import sys
 import subprocess
 
+from gevo import __version__
 from gevo.evolve import evolution
 
 if __name__ == '__main__':
@@ -28,6 +29,7 @@ if __name__ == '__main__':
     # cut, replace, insert, swap, move, operand replace, cache
     parser.add_argument('--mutop', type=str, default='c,r,i,s,m,p', metavar="OP_STR",
         help="Specify mutation operations to be enabled during evolution. Operation are separated by comma.")
+    parser.add_argument('--version', action='version', version='gevo-' + __version__)
     args = parser.parse_args()
 
     try:

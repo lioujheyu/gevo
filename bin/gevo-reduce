@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 # pylint: disable=logging-fstring-interpolation
+# Under experiment/development. Do not use if you don't know what it is doing
+
+
 import argparse
 import subprocess
 import json
@@ -13,6 +16,7 @@ from rich.progress import Progress
 from rich.table import Table
 from rich import print as rprint
 
+from gevo import __version__
 from gevo.evolve import evolution
 
 logging.basicConfig(format="%(message)s" ,level="NOTSET" ,handlers=[RichHandler()])
@@ -202,6 +206,7 @@ if __name__ == '__main__':
         help="What is the target fitness for the evolution. Default ot execution time. Can be changed to power")
     parser.add_argument('--err_rate', type=float, default='0.01',
         help="Allowed maximum relative error generate from mutant comparing to the origin")
+    parser.add_argument('--version', action='version', version='gevo-' + __version__)
     args = parser.parse_args()
 
     try:

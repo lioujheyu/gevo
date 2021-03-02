@@ -12,6 +12,7 @@ from deap import creator
 from deap import base
 from deap import tools
 
+from gevo import __version__
 from gevo import irind
 from gevo.evolve import evolution
 
@@ -120,7 +121,7 @@ class program(evolution):
             pickle.dump(self.editFitMap, emfile)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Analyze the performance of mutation edits for CUDA kernel")
+    parser = argparse.ArgumentParser(description="Explore the fitness space composed by all the 1-degree mutation to the given program")
     parser.add_argument('-P', '--profile_file', type=str, required=True,
         help="Specify the profile file that contains all application execution and testing information")
     parser.add_argument('-t', '--timeout', type=int, default=30,
@@ -129,6 +130,7 @@ if __name__ == '__main__':
         help="What is the target fitness for the evolution. Default ot execution time. Can be changed to power")
     parser.add_argument('--err_rate', type=float, default='0.01',
         help="Allowed maximum relative error generate from mutant comparing to the origin")
+    parser.add_argument('--version', action='version', version='gevo-' + __version__)
     args = parser.parse_args()
 
     try:
