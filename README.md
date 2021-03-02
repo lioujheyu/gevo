@@ -41,6 +41,7 @@ Or build and install manually
 ```bash
 git clone https://github.com/lioujheyu/gevo
 cd gevo
+git submodule update --init --recursive
 pip install . --user
 ```
 
