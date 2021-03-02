@@ -26,11 +26,13 @@ before_install:
   - PATH=${CUDA_HOME}/bin:${PATH}
 
 install:
-  - pip install .
+  # for test
+  - pip install lit filecheck
 
 script: 
+  # build gevo and install
+  - pip install .
   # Check whether scripts are installed
-  - gevo-evolve --version
   - llvm-mutate --version
   # llvm-mutate unittests
   - lit -v llvm-mutate/tests/*.ll
