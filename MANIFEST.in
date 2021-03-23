@@ -3,5 +3,6 @@ recursive-include fuzzycompare *
 include llvm-mutate/CMakeLists.txt
 include llvm-mutate/_llvm.py.in
 recursive-include llvm-mutate/Mutate *
+recursive-include llvm-mutate/tests *
 include CMakeLists.txt
 include pyproject.toml
