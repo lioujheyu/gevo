@@ -14,6 +14,7 @@ import os
 import re
 import time
 import gc
+import shutil
 from itertools import cycle
 from threading import Thread
 from threading import Lock
@@ -123,6 +124,13 @@ class evolution:
         # TODO: check if there are multiple GPUs.
         SM_MAJOR, SM_MINOR = cuda.Device(0).compute_capability()
         self.mgpu = 'sm_' + str(SM_MAJOR) + str(SM_MINOR)
+        print(f'[Initializing GEVO] GPU compute capability: {self.mgpu}')
+
+        # check Nvidia Profiler exists
+        nvprof_path = shutil.which('nvprof')
+        if nvprof_path is None:
+            raise Exception('nvprof cannot be found')
+        print(f'[Initializing GEVO] nvprof detected: {nvprof_path}')
 
         # Minimize both performance and error
         creator.create("FitnessMin", base.Fitness, weights=(-1.0, -1.0))
@@ -168,7 +176,6 @@ class evolution:
         self.testcase = []
         for i in range(len(arg_array)):
             self.testcase.append( self._testcase(self, i, kernel, bin, profile['verify']) )
-        print("Evalute testcase as golden..", end='', flush=True)
         with Progress("[Initializing GEVO] Evaluate original program with test cases",
                       "({task.completed} / {task.total})",
                       rich.progress.TimeElapsedColumn()) as progress:
@@ -395,7 +402,7 @@ class evolution:
         return ind1, ind2
 
     def execNVprofRetrive(self, testcase):
-        proc = subprocess.Popen(['/usr/local/cuda/bin/nvprof',
+        proc = subprocess.Popen([nvprof_path,
                                  '--unified-memory-profiling', 'off',
                                 #  '--profile-from-start', 'off',
                                  '--profile-child-processes',
