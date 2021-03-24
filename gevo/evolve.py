@@ -127,10 +127,10 @@ class evolution:
         print(f'[Initializing GEVO] GPU compute capability: {self.mgpu}')
 
         # check Nvidia Profiler exists
-        nvprof_path = shutil.which('nvprof')
-        if nvprof_path is None:
+        self.nvprof_path = shutil.which('nvprof')
+        if self.nvprof_path is None:
             raise Exception('nvprof cannot be found')
-        print(f'[Initializing GEVO] nvprof detected: {nvprof_path}')
+        print(f'[Initializing GEVO] nvprof detected: {self.nvprof_path}')
 
         # Minimize both performance and error
         creator.create("FitnessMin", base.Fitness, weights=(-1.0, -1.0))
@@ -402,7 +402,7 @@ class evolution:
         return ind1, ind2
 
     def execNVprofRetrive(self, testcase):
-        proc = subprocess.Popen([nvprof_path,
+        proc = subprocess.Popen([self.nvprof_path,
                                  '--unified-memory-profiling', 'off',
                                 #  '--profile-from-start', 'off',
                                  '--profile-child-processes',
