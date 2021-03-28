@@ -95,7 +95,7 @@ def update_from_edits(idx, ind, resultList):
         stderr=subprocess.PIPE,
         input=ind.srcEnc
     )
-    if proc.returncode < 0:
+    if proc.returncode != 0 and proc.returncode != 1:
         resultList[idx] = False
     else:
         ind.update(proc.stdout)
@@ -165,7 +165,7 @@ class llvmIRrep():
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE,
                                   input=self.srcEnc)
-            if proc.returncode < 0:
+            if proc.returncode != 0 and proc.returncode != 1:
                 return False, proc.stderr
             mutateSrcEn = proc.stdout
         else:
