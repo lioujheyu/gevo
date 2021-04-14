@@ -51,7 +51,6 @@ setup(
         'bin/gevo-evaluate',
         'bin/gevo-stage-analyze',
         'bin/gevo-explore',
-        'bin/gevo-reduce',
         'bin/llvm-mutate'
     ],
     zip_safe=False,
