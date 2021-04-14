@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# pylint: disable=logging-fstring-interpolation
+
 import argparse
 import subprocess
 import json
@@ -6,9 +8,11 @@ import sys
 import logging
 import ast
 import itertools
+from copy import deepcopy
 
 from rich.logging import RichHandler
 from rich.table import Table
+from rich.progress import Progress
 from rich import print as rprint
 
 from gevo import __version__
@@ -43,7 +47,7 @@ class program(evolution):
             raise Exception("Edit file cannot be compiled")
 
     def evaluate_full_edits(self):
-        print(f"Evaluate edit file", end="", flush=True)
+        rprint(f"Evaluate edit file", end="", flush=True)
         self.fullEditsInd = self.toolbox.individual()
         self.fullEditsInd.edits = self.edits
         if self.fullEditsInd.update_from_edits() is False:
@@ -52,39 +56,144 @@ class program(evolution):
         fit = min([value[0] for value in fitness_values])
         err = min([value[1] for value in fitness_values])
         self.fullEditsInd.fitness.values = (fit, err)
+        rprint("")
         log.info(f"Fitness of the program with all edits: {self.fullEditsInd.fitness}")    
     
-    def edittest(self):
-        self.pop = self.toolbox.population(n=len(self.edits))
-        fitness = [None] * len(self.edits)
-        for ind,edit,fits in zip(self.pop, self.edits, fitness):
-            ind.edits = [edit]
-            print(f"{edit}", end='', flush=True)
-            if ind.update_from_edits() == False:
-                print(": cannot compile")
-                continue
-            fits = [self.evaluate(ind)[0] for i in range(3)]
-            errs = [self.evaluate(ind)[1] for i in range(3)]
-            if None in fits:
-                print(": execution failed")
-                continue
-            fit = min(fits)
-            err = min(errs)
-            improvement = self.origin.fitness.values[0]/fit
-            print(f": {fit:.2f}. Improvement: {improvement:.2f}. Error:{err:.2f}")
+    def remove_useless_edits(self, edits):
+        ''' 
+        :param edits: removing useless edit from edits
+        :returns: The useful edits
+        '''
+        log.info("Start removing useless edits ...")
+        pop = self.toolbox.population(n=len(edits))
+        with Progress(auto_refresh=False) as pbar:
+            task1 = pbar.add_task("", total=len(edits))
+            pbar.update(task1, completed=0, refresh=True,
+                        description=f"(0/{len(edits)})")
 
-    def group_test(self):
-        editIdxMap = {edits_as_key([edit]): cnt for cnt, edit in enumerate(self.edits)}
+            removal_list = []
+            for cnt, (ind,edit) in enumerate(zip(pop, edits)):
+                # ind.edits = edits.copy()
+                ind.edits = [e for e in edits if e not in removal_list]
+                ind.edits.remove(edit)
+                # print(f"Evalute edit removal: {edit}", end='', flush=True)
+                if ind.update_from_edits() == False:
+                    log.info(f"{edit[0]} removed: cannot compile")
+                    continue
+                fitness_values = [self.evaluate(ind) for i in range(3)]
+                if None in [value[0] for value in fitness_values]:
+                    log.info(f"{edit[0]} removed: execution failed")
+                    continue
+
+                fit = min([value[0] for value in fitness_values])
+                err = min([value[1] for value in fitness_values])
+                improvement = self.fullEditsInd.fitness.values[0]/fit
+                if improvement > 0.99:
+                    removal_list.append(edit)
+                    log.info(f"{edit[0]} removed: {fit:.2f}. Improvement: {improvement:.2f}. Error:{err}")
+                else:
+                    log.info(f"{edit[0]} not removed: {fit:.2f}. Improvement: {improvement:.2f}. Error:{err}")
+
+                pbar.update(task1, completed=cnt+1, refresh=True,
+                            description=f"({cnt+1}/{len(edits)})")
+        
+        ind = self.toolbox.individual()
+        ind.edits = [e for e in edits if e not in removal_list]
+        if ind.update_from_edits() is False:
+            log.error("Final reduced: cannot be compiled")
+            sys.exit(1)
+        with open("reduced.edit", "w") as f:
+            rprint(ind.edits, file=f)
+        with open("reduced.ll", "w") as f:
+            f.write(ind.srcEnc.decode())
+        log.info("Done writing reduced.edit and reduced.ll")
+        fitness_values = [self.evaluate(ind) for i in range(3)]
+        if None in [value[0] for value in fitness_values]:
+            log.error("Final reduced: execution failed")
+            sys.exit(1)
+            
+        fit = min([value[0] for value in fitness_values])
+        err = min([value[1] for value in fitness_values])
+        ind.fitness.values = (fit, err)
+        log.info(f"Fitness of the edit-reduced program: {ind.fitness}")
+        return ind.edits
+    
+    # def edittest(self):
+    #     self.pop = self.toolbox.population(n=len(self.edits))
+    #     fitness = [None] * len(self.edits)
+    #     for ind,edit,fits in zip(self.pop, self.edits, fitness):
+    #         ind.edits = [edit]
+    #         print(f"{edit}", end='', flush=True)
+    #         if ind.update_from_edits() == False:
+    #             print(": cannot compile")
+    #             continue
+    #         fits = [self.evaluate(ind)[0] for i in range(3)]
+    #         errs = [self.evaluate(ind)[1] for i in range(3)]
+    #         if None in fits:
+    #             print(": execution failed")
+    #             continue
+    #         fit = min(fits)
+    #         err = min(errs)
+    #         improvement = self.origin.fitness.values[0]/fit
+    #         print(f": {fit:.2f}. Improvement: {improvement:.2f}. Error:{err:.2f}")
+
+    def search_indepedent_edits(self, edits):
+        '''
+        :param edits: input edits that will be divided into independent or epistasis group
+        :returns: independent edits and epistasis edits
+        '''
+        log.info("Start searching for indepedent/epistasis edits ...")
+        independentEdits = []
+        for edit in edits:
+            editOnlyInd = self.toolbox.individual()
+            editOnlyInd.edits = [edit]
+            if editOnlyInd.update_from_edits() is False:
+                continue
+            fitness_values = [self.evaluate(editOnlyInd) for i in range(3)]
+            if None in [value[0] for value in fitness_values]:
+                continue
+            fit = min([value[0] for value in fitness_values])
+            err = min([value[1] for value in fitness_values])
+            editOnlyInd.fitness.values = (fit, err)
+            runtimeDiffDown = self.origin.fitness.values[0] - editOnlyInd.fitness.values[0]
+
+            fullExceptEditInd = self.toolbox.individual()
+            fullExceptEditInd.edits = deepcopy(self.edits)
+            fullExceptEditInd.edits.remove(edit)
+            if fullExceptEditInd.update_from_edits() is False:
+                continue
+            fitness_values = [self.evaluate(fullExceptEditInd) for i in range(3)]
+            if None in [value[0] for value in fitness_values]:
+                continue
+            fit = min([value[0] for value in fitness_values])
+            err = min([value[1] for value in fitness_values])
+            fullExceptEditInd.fitness.values = (fit, err)
+            runtimeDiffTop = fullExceptEditInd.fitness.values[0] - self.fullEditsInd.fitness.values[0]
+            
+            if abs(runtimeDiffDown - runtimeDiffTop) < self.origin.fitness.values[0]*0.01:
+                log.info(f"{edit} can be independently applied: {editOnlyInd.fitness.values[0]:.2f}.")
+                independentEdits.append(edit)
+
+        epistasis = [ edit for edit in edits if edit not in independentEdits ]
+        with open(f"reduced_no_independent.edit", 'w') as f:
+            rprint(epistasis, file=f)
+        with open(f"reduced_independent.edit", 'w') as f:
+            rprint(independentEdits, file=f)
+        return independentEdits, epistasis
+
+    def group_test(self, edits):
+        log.info("Start evaluating all edit combinations iteratively ...")
+        editIdxMap = {edits_as_key([edit]): cnt for cnt, edit in enumerate(edits)}
         
         grid = Table.grid()
         grid.add_column(justify="right", style="bold blue")
         grid.add_column()
-        for cnt, edit in enumerate(self.edits):
+        for cnt, edit in enumerate(edits):
             grid.add_row(str(cnt)+': ', str(edit))
         rprint(grid)
 
-        for l in range(2, len(self.edits)):
-            for subEdits in itertools.combinations(self.edits, l): 
+        for l in range(2, len(edits)):
+            for subEdits in itertools.combinations(edits, l): 
                 subEditsInd = self.toolbox.individual()
                 subEditsInd.edits = subEdits
                 if subEditsInd.update_from_edits() is False:
@@ -153,10 +262,11 @@ if __name__ == '__main__':
 
     try:
         alyz.evaluate_full_edits()
-        print("Evaluating each individual edit")
-        alyz.edittest()
+        usefulEdits = alyz.remove_useless_edits(alyz.edits)
+        _, epistasisEdits = alyz.search_indepedent_edits(usefulEdits)
+        alyz.group_test(epistasisEdits)
 
-        print("Evaluating all edit combinations iteratively")
-        alyz.group_test()
+        # print("Evaluating each individual edit")
+        # alyz.edittest()
     except KeyboardInterrupt:
         subprocess.run(['killall', profile['binary']])
