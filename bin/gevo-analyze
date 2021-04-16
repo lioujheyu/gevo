@@ -118,24 +118,23 @@ class program(evolution):
         log.info(f"Fitness of the edit-reduced program: {ind.fitness}")
         return ind.edits
     
-    # def edittest(self):
-    #     self.pop = self.toolbox.population(n=len(self.edits))
-    #     fitness = [None] * len(self.edits)
-    #     for ind,edit,fits in zip(self.pop, self.edits, fitness):
-    #         ind.edits = [edit]
-    #         print(f"{edit}", end='', flush=True)
-    #         if ind.update_from_edits() == False:
-    #             print(": cannot compile")
-    #             continue
-    #         fits = [self.evaluate(ind)[0] for i in range(3)]
-    #         errs = [self.evaluate(ind)[1] for i in range(3)]
-    #         if None in fits:
-    #             print(": execution failed")
-    #             continue
-    #         fit = min(fits)
-    #         err = min(errs)
-    #         improvement = self.origin.fitness.values[0]/fit
-    #         print(f": {fit:.2f}. Improvement: {improvement:.2f}. Error:{err:.2f}")
+    def edittest(self, edits):
+        pop = self.toolbox.population(n=len(edits))
+        fitness = [None] * len(edits)
+        for ind,edit,fits in zip(pop, self.edits, fitness):
+            ind.edits = [edit]
+            if ind.update_from_edits() == False:
+                rprint(f"{edit}: cannot compile")
+                continue
+            fits = [self.evaluate(ind)[0] for i in range(3)]
+            errs = [self.evaluate(ind)[1] for i in range(3)]
+            if None in fits:
+                rprint(f"{edit}: execution failed")
+                continue
+            fit = min(fits)
+            err = min(errs)
+            improvement = self.origin.fitness.values[0]/fit
+            rprint(f"{edit}: {fit:.2f}. Improvement: {improvement:.2f}. Error:{err:.2f}")
 
     def search_indepedent_edits(self, edits):
         '''
@@ -262,11 +261,28 @@ if __name__ == '__main__':
 
     try:
         alyz.evaluate_full_edits()
-        usefulEdits = alyz.remove_useless_edits(alyz.edits)
-        _, epistasisEdits = alyz.search_indepedent_edits(usefulEdits)
-        alyz.group_test(epistasisEdits)
+        edits = alyz.edits
+        while True:
+            rprint("0) list current edits")
+            rprint("1) test each edit individualy")
+            rprint("2) remove useless edits")
+            rprint("3) group independent/epistasis edits")
+            rprint("4) test edit combinations exhaustively")
+            op = input("Chose the analysis operation you want to go over: ")
 
-        # print("Evaluating each individual edit")
-        # alyz.edittest()
+            if op == '0':
+                rprint(edits)
+            elif op == '1':
+                alyz.edittest(edits)
+            elif op == '2':
+                edits = alyz.remove_useless_edits(edits)
+            elif op == '3':
+                groupOp = input("return (1)independent or (2)epistasis as current edits after grouping?")
+                indEdits, epistasisEdits = alyz.search_indepedent_edits(edits)
+                edits = indEdits if groupOp == 1 else epistasisEdits
+            elif op == '4':
+                alyz.group_test(edits)
+            else:
+                log.warning(f"Invalid selection: {op}")
     except KeyboardInterrupt:
         subprocess.run(['killall', profile['binary']])
