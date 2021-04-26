@@ -42,81 +42,69 @@ class program(evolution):
             log.error(f"Edit File:{editf} cannot be found")
             sys.exit(1)
 
-        self.origin.edits = self.edits
-        if self.origin.update_from_edits() is False:
-            raise Exception("Edit file cannot be compiled")
-
-    def evaluate_full_edits(self):
-        rprint(f"Evaluate edit file", end="", flush=True)
+        rprint(f"Evaluate edit file ", end="", flush=True)
         self.fullEditsInd = self.toolbox.individual()
         self.fullEditsInd.edits = self.edits
         if self.fullEditsInd.update_from_edits() is False:
             raise Exception("Edit file cannot be compiled")
         fitness_values = [self.evaluate(self.fullEditsInd) for i in range(3)]
+        if None in [value[0] for value in fitness_values]:
+            raise Exception("Edit file fails the verification")
         fit = min([value[0] for value in fitness_values])
         err = min([value[1] for value in fitness_values])
         self.fullEditsInd.fitness.values = (fit, err)
         rprint("")
         log.info(f"Fitness of the program with all edits: {self.fullEditsInd.fitness}")    
     
-    def remove_useless_edits(self, edits):
+    def remove_weak_edits(self, edits, threshold=0.01):
         ''' 
-        :param edits: removing useless edit from edits
+        :param edits: removing weak edit from edits
         :returns: The useful edits
         '''
-        log.info("Start removing useless edits ...")
-        pop = self.toolbox.population(n=len(edits))
+        log.info("Start removing weak edits ...")
         with Progress(auto_refresh=False) as pbar:
             task1 = pbar.add_task("", total=len(edits))
             pbar.update(task1, completed=0, refresh=True,
                         description=f"(0/{len(edits)})")
 
             removal_list = []
-            for cnt, (ind,edit) in enumerate(zip(pop, edits)):
-                # ind.edits = edits.copy()
-                ind.edits = [e for e in edits if e not in removal_list]
-                ind.edits.remove(edit)
-                # print(f"Evalute edit removal: {edit}", end='', flush=True)
-                if ind.update_from_edits() == False:
-                    log.info(f"{edit[0]} removed: cannot compile")
+            indPrior = deepcopy(self.fullEditsInd)
+            for cnt, edit in enumerate(edits):
+                indPriorwoEdit = self.toolbox.individual()
+
+                indPriorwoEdit.edits = deepcopy(indPrior.edits)
+                indPriorwoEdit.edits.remove(edit)
+
+                if indPriorwoEdit.update_from_edits() == False:
+                    log.info(f"{edit[0]} not removed: cannot compile")
                     continue
-                fitness_values = [self.evaluate(ind) for i in range(3)]
+
+                fitness_values = [self.evaluate(indPriorwoEdit) for i in range(3)]
                 if None in [value[0] for value in fitness_values]:
-                    log.info(f"{edit[0]} removed: execution failed")
+                    log.info(f"{edit[0]} not removed: execution failed")
                     continue
 
                 fit = min([value[0] for value in fitness_values])
                 err = min([value[1] for value in fitness_values])
-                improvement = self.fullEditsInd.fitness.values[0]/fit
-                if improvement > 0.99:
+                indPriorwoEdit.fitness.values = (fit, err)
+                improvement = indPrior.fitness.values[0]/fit
+                if improvement > 1-threshold:
                     removal_list.append(edit)
                     log.info(f"{edit[0]} removed: {fit:.2f}. Improvement: {improvement:.2f}. Error:{err}")
+                    indPrior = indPriorwoEdit
                 else:
                     log.info(f"{edit[0]} not removed: {fit:.2f}. Improvement: {improvement:.2f}. Error:{err}")
 
                 pbar.update(task1, completed=cnt+1, refresh=True,
                             description=f"({cnt+1}/{len(edits)})")
         
-        ind = self.toolbox.individual()
-        ind.edits = [e for e in edits if e not in removal_list]
-        if ind.update_from_edits() is False:
-            log.error("Final reduced: cannot be compiled")
-            sys.exit(1)
         with open("reduced.edit", "w") as f:
-            rprint(ind.edits, file=f)
+            rprint(indPrior.edits, file=f)
         with open("reduced.ll", "w") as f:
-            f.write(ind.srcEnc.decode())
+            f.write(indPrior.srcEnc.decode())
         log.info("Done writing reduced.edit and reduced.ll")
-        fitness_values = [self.evaluate(ind) for i in range(3)]
-        if None in [value[0] for value in fitness_values]:
-            log.error("Final reduced: execution failed")
-            sys.exit(1)
-            
-        fit = min([value[0] for value in fitness_values])
-        err = min([value[1] for value in fitness_values])
-        ind.fitness.values = (fit, err)
-        log.info(f"Fitness of the edit-reduced program: {ind.fitness}")
-        return ind.edits
+        log.info(f"Fitness of the edit-reduced program: {indPrior.fitness}")
+        return indPrior.edits
     
     def edittest(self, edits):
         pop = self.toolbox.population(n=len(edits))
@@ -260,28 +248,27 @@ if __name__ == '__main__':
     rprint(table)
 
     try:
-        alyz.evaluate_full_edits()
-        edits = alyz.edits
+        curEdits = alyz.edits
         while True:
             rprint("0) list current edits")
             rprint("1) test each edit individualy")
-            rprint("2) remove useless edits")
+            rprint("2) remove weak edits")
             rprint("3) group independent/epistasis edits")
             rprint("4) test edit combinations exhaustively")
             op = input("Chose the analysis operation you want to go over: ")
 
             if op == '0':
-                rprint(edits)
+                rprint(curEdits)
             elif op == '1':
-                alyz.edittest(edits)
+                alyz.edittest(curEdits)
             elif op == '2':
-                edits = alyz.remove_useless_edits(edits)
+                curEdits = alyz.remove_weak_edits(curEdits)
             elif op == '3':
                 groupOp = input("return (1)independent or (2)epistasis as current edits after grouping?")
-                indEdits, epistasisEdits = alyz.search_indepedent_edits(edits)
-                edits = indEdits if groupOp == 1 else epistasisEdits
+                indEdits, epistasisEdits = alyz.search_indepedent_edits(curEdits)
+                curEdits = indEdits if groupOp == 1 else epistasisEdits
             elif op == '4':
-                alyz.group_test(edits)
+                alyz.group_test(curEdits)
             else:
                 log.warning(f"Invalid selection: {op}")
     except KeyboardInterrupt:
