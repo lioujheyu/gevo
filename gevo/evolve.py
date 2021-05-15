@@ -295,21 +295,32 @@ class evolution:
             src = self.verifier['output']
             golden = testcase.golden
             result = True
-            for s, g in zip(src, golden):
-                if self.verifier.get('fuzzy', False) == False:
+            for cnt, (s, g) in enumerate(zip(src, golden)):
+                fuzzy = self.verifier.get('fuzzy', False)
+                if isinstance(fuzzy, list):
                     try:
-                        result = result & filecmp.cmp(s, g)
-                    except IOError:
-                        print("File {} or {} cannot be found".format(src, golden))
+                        fuzzy = fuzzy[cnt]
+                    except IndexError:
+                        print("Verification Error: Fuzzy mode is a list but does not match the number of output files")
+                elif isinstance(fuzzy, bool):
+                    pass
                 else:
+                    raise Exception("Verification Error: fuzzy mode is not a single or a list of the boolean value")
+
+                if fuzzy:
                     rc, msg, maxerr, avgerr = fuzzycompare.file(s, g, self.err_rate)
                     if rc < 0:
                         raise Exception(msg)
                     result = result & (True if rc==0 else False)
                     err = maxerr if maxerr > err else err
+                else:
+                    try:
+                        result = result & filecmp.cmp(s, g)
+                    except IOError:
+                        print("Verification Error: File {} or {} cannot be found".format(src, golden))
             return result, err
         else:
-            raise Exception("Unknown comparing mode \"{}\" from compare.json".format(
+            raise Exception("Verification Error: Unknown comparing mode \"{}\" in the json profile".format(
                 self.verifier['mode']))
 
     def mutLLVM(self, individual):
@@ -665,7 +676,7 @@ class evolution:
             self.pop = [ ind for ind in self.pop if ind.fitness.values is not None]
 
             # self.pop = self.toolbox.select(self.pop + offspring, popSize)
-            elite = self.toolbox.select(self.pop, 64)
+            elite = self.toolbox.select(self.pop, 16)
             self.pop = self.toolbox.select(elite + offspring, popSize)
             record = self.stats.compile(self.pop)
             self.logbook.record(gen=self.generation, evals=popSize, **record)
