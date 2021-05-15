@@ -14,7 +14,6 @@ from deap import base
 from deap import tools
 
 from gevo import irind
-#import gevo.evolve
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:

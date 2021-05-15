@@ -42,7 +42,7 @@ class program(evolution):
             log.error(f"Edit File:{editf} cannot be found")
             sys.exit(1)
 
-        rprint(f"Evaluate edit file ", end="", flush=True)
+        rprint("Evaluate edit file ", end="", flush=True)
         self.fullEditsInd = self.toolbox.individual()
         self.fullEditsInd.edits = self.edits
         if self.fullEditsInd.update_from_edits() is False:
@@ -162,9 +162,9 @@ class program(evolution):
                 independentEdits.append(edit)
 
         epistasis = [ edit for edit in edits if edit not in independentEdits ]
-        with open(f"reduced_no_independent.edit", 'w') as f:
+        with open("reduced_no_independent.edit", 'w') as f:
             rprint(epistasis, file=f)
-        with open(f"reduced_independent.edit", 'w') as f:
+        with open("reduced_independent.edit", 'w') as f:
             rprint(independentEdits, file=f)
         return independentEdits, epistasis
 
@@ -178,27 +178,40 @@ class program(evolution):
         for cnt, edit in enumerate(edits):
             grid.add_row(str(cnt)+': ', str(edit))
         rprint(grid)
+        
+        fcomb = open("group_test.txt", 'w')
+        rprint(grid, file=fcomb)
 
         for l in range(2, len(edits)):
-            for subEdits in itertools.combinations(edits, l): 
-                subEditsInd = self.toolbox.individual()
-                subEditsInd.edits = subEdits
-                if subEditsInd.update_from_edits() is False:
-                    continue
-                fitness_values = [self.evaluate(subEditsInd) for i in range(3)]
-                if None in [value[0] for value in fitness_values]:
-                    continue
-                fit = min([value[0] for value in fitness_values])
-                err = min([value[1] for value in fitness_values])
-                subEditsInd.fitness.values = (fit, err)
-                improvement = self.origin.fitness.values[0] / fit
-                if improvement < 1.01:
-                    continue
+            fcomb.write(f"{l} combinations\n")
+            with Progress(auto_refresh=False) as pbar:
+                task1 = pbar.add_task(f"", total=len(list(itertools.combinations(edits, l))))
+                cnt = 0
+                for subEdits in itertools.combinations(edits, l): 
+                    pbar.update(task1, completed=cnt, refresh=True,
+                                description=f"{l} combination: ({cnt}/{len(list(itertools.combinations(edits, l)))})")
+                    cnt = cnt + 1
 
-                print('[ ', end='')
-                for edit in subEdits:
-                    print(f"{editIdxMap[edits_as_key([edit])]} ", end='')
-                print(f']: ({fit:.2f}, {err:.2f}), Imp:{improvement:.2f}')
+                    subEditsInd = self.toolbox.individual()
+                    subEditsInd.edits = subEdits
+                    if subEditsInd.update_from_edits() is False:
+                        continue
+                    fitness_values = [self.evaluate(subEditsInd) for i in range(3)]
+                    if None in [value[0] for value in fitness_values]:
+                        continue
+                    fit = min([value[0] for value in fitness_values])
+                    err = min([value[1] for value in fitness_values])
+                    subEditsInd.fitness.values = (fit, err)
+                    improvement = self.origin.fitness.values[0] / fit
+                    if improvement < 1.01:
+                        continue
+
+                    edit_str = ' '.join([ str(editIdxMap[edits_as_key([edit])]) for edit in subEdits ])
+                    rprint(f'[ {edit_str}]: ({fit:.2f}, {err:.2f}), Imp:{improvement:.2f}')
+                    fcomb.write(f'{edit_str},{fit:.2f},{err:.2f},{improvement:.2f}\n')
+                    fcomb.flush()
+
+        fcomb.close()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Analyze the performance of mutation edits for CUDA kernel")
