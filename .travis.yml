@@ -35,4 +35,4 @@ script:
   # Check whether scripts are installed
   - llvm-mutate --version
   # llvm-mutate unittests
-  - lit -v llvm-mutate/tests/*.ll
+  - lit -v llvm-mutate/tests
