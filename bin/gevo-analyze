@@ -85,10 +85,10 @@ class program(evolution):
                     continue
 
                 fit = min([value[0] for value in fitness_values])
-                err = min([value[1] for value in fitness_values])
+                err = max([value[1] for value in fitness_values])
                 indPriorwoEdit.fitness.values = (fit, err)
                 improvement = indPrior.fitness.values[0]/fit
-                if improvement > 1-threshold:
+                if improvement > 1-threshold and abs(err - indPrior.fitness.values[1]) < 0.01*threshold:
                     removal_list.append(edit)
                     log.info(f"{edit[0]} removed: {fit:.2f}. Improvement: {improvement:.2f}. Error:{err}")
                     indPrior = indPriorwoEdit
@@ -119,8 +119,11 @@ class program(evolution):
             if None in fits:
                 rprint(f"{edit}: execution failed")
                 continue
+            if None in errs:
+                rprint(f"{edit}: execution failed")
+                continue
             fit = min(fits)
-            err = min(errs)
+            err = max(errs)
             improvement = self.origin.fitness.values[0]/fit
             rprint(f"{edit}: {fit:.2f}. Improvement: {improvement:.2f}. Error:{err:.2f}")
 
@@ -133,7 +136,9 @@ class program(evolution):
         independentEdits = []
         for edit in edits:
             editOnlyInd = self.toolbox.individual()
-            editOnlyInd.edits = [edit]
+            # editOnlyInd.edits = [edit]
+            editOnlyInd.edits = deepcopy(independentEdits)
+            editOnlyInd.edits.append(edit)
             if editOnlyInd.update_from_edits() is False:
                 continue
             fitness_values = [self.evaluate(editOnlyInd) for i in range(3)]
@@ -145,8 +150,7 @@ class program(evolution):
             runtimeDiffDown = self.origin.fitness.values[0] - editOnlyInd.fitness.values[0]
 
             fullExceptEditInd = self.toolbox.individual()
-            fullExceptEditInd.edits = deepcopy(self.edits)
-            fullExceptEditInd.edits.remove(edit)
+            fullExceptEditInd.edits = [ e for e in edits if e not in editOnlyInd.edits]
             if fullExceptEditInd.update_from_edits() is False:
                 continue
             fitness_values = [self.evaluate(fullExceptEditInd) for i in range(3)]
@@ -188,28 +192,31 @@ class program(evolution):
                 task1 = pbar.add_task(f"", total=len(list(itertools.combinations(edits, l))))
                 cnt = 0
                 for subEdits in itertools.combinations(edits, l): 
+                    fcomb.flush()
                     pbar.update(task1, completed=cnt, refresh=True,
                                 description=f"{l} combination: ({cnt}/{len(list(itertools.combinations(edits, l)))})")
                     cnt = cnt + 1
 
                     subEditsInd = self.toolbox.individual()
                     subEditsInd.edits = subEdits
+                    edit_str = ' '.join([ str(editIdxMap[edits_as_key([edit])]) for edit in subEdits ])
                     if subEditsInd.update_from_edits() is False:
+                        fcomb.write(f'{edit_str},c,c,c\n')
                         continue
                     fitness_values = [self.evaluate(subEditsInd) for i in range(3)]
                     if None in [value[0] for value in fitness_values]:
+                        fcomb.write(f'{edit_str},x,x,x\n')
                         continue
                     fit = min([value[0] for value in fitness_values])
                     err = min([value[1] for value in fitness_values])
                     subEditsInd.fitness.values = (fit, err)
                     improvement = self.origin.fitness.values[0] / fit
                     if improvement < 1.01:
+                        fcomb.write(f'{edit_str},{fit:.2f},{err:.2f},{improvement:.2f}\n')
                         continue
 
-                    edit_str = ' '.join([ str(editIdxMap[edits_as_key([edit])]) for edit in subEdits ])
                     rprint(f'[ {edit_str}]: ({fit:.2f}, {err:.2f}), Imp:{improvement:.2f}')
                     fcomb.write(f'{edit_str},{fit:.2f},{err:.2f},{improvement:.2f}\n')
-                    fcomb.flush()
 
         fcomb.close()
 
@@ -223,7 +230,7 @@ if __name__ == '__main__':
         help="The timeout period to evaluate the CUDA application")
     parser.add_argument('-fitf', '--fitness_function', type=str, default='time',
         help="What is the target fitness for the evolution. Default ot execution time. Can be changed to power")
-    parser.add_argument('--err_rate', type=float, default='0.01',
+    parser.add_argument('--err_rate', type=str, default='0.01',
         help="Allowed maximum relative error generate from mutant comparing to the origin")
     parser.add_argument('--version', action='version', version='gevo-' + __version__)
     args = parser.parse_args()
