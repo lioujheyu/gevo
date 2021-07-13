@@ -128,7 +128,7 @@ if __name__ == '__main__':
         help="The timeout period to evaluate the CUDA application")
     parser.add_argument('-fitf', '--fitness_function', type=str, default='time',
         help="What is the target fitness for the evolution. Default ot execution time. Can be changed to power")
-    parser.add_argument('--err_rate', type=float, default='0.01',
+    parser.add_argument('--err_rate', type=str, default='0.01',
         help="Allowed maximum relative error generate from mutant comparing to the origin")
     parser.add_argument('--version', action='version', version='gevo-' + __version__)
     args = parser.parse_args()

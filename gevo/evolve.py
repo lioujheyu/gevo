@@ -97,7 +97,7 @@ class evolution:
 
     def __init__(self, kernel, bin, profile, mutop, timeout=30, fitness='time', popsize=128,
                  llvm_src_filename='cuda-device-only-kernel.ll', use_fitness_map=True,
-                 CXPB=0.8, MUPB=0.1, err_rate=0.01):
+                 CXPB=0.8, MUPB=0.1, err_rate='0.01'):
         self.CXPB = CXPB
         self.MUPB = MUPB
         self.err_rate = err_rate
@@ -201,7 +201,8 @@ class evolution:
         plt.title("Program variant performance - Generation {}".format(self.generation))
         plt.xlabel("Runtime(ms)")
         plt.ylabel("Error(%)")
-        plt.ylim(ymin=-(self.err_rate*100/20), ymax=self.err_rate*100)
+        err_rate = float(self.err_rate[0:-2]) if self.err_rate[-1] == '|' else float(self.err_rate)
+        plt.ylim(ymin=-(float(err_rate)*100/20), ymax=float(err_rate)*100)
         plt.xticks(rotation=45)
         plt.scatter([fit[0]/1000 for fit in fits], [fit[1]*100 for fit in fits],
                     marker='*', label="dominated")
@@ -280,7 +281,7 @@ class evolution:
                 if line.find('Cross Accuracy = ') != -1:
                     accuracy = float(line.replace('Cross Accuracy = ',''))
                     err = 1 - accuracy
-                    result = False if err > self.err_rate else True
+                    result = False if err > float(self.err_rate) else True
                     return result, err
             return False, err
         elif self.verifier['mode'] == 'caffe2':
@@ -288,7 +289,7 @@ class evolution:
                 if line.find('Accuracy = ') != -1:
                     accuracy = float(line.replace('Accuracy = ',''))
                     err = 1 - accuracy
-                    result = False if err > self.err_rate else True
+                    result = False if err > float(self.err_rate) else True
                     return result, err
             return False, err
         elif self.verifier['mode'] == 'file':
@@ -308,16 +309,16 @@ class evolution:
                     raise Exception("Verification Error: fuzzy mode is not a single or a list of the boolean value")
 
                 if fuzzy:
-                    rc, msg, maxerr, avgerr = fuzzycompare.file(s, g, self.err_rate)
-                    if rc < 0:
-                        raise Exception(msg)
+                    rc, maxerr, avgerr = fuzzycompare.file(s, g, self.err_rate)
+                    # if rc < 0:
+                    #     raise Exception(msg)
                     result = result & (True if rc==0 else False)
                     err = maxerr if maxerr > err else err
                 else:
                     try:
                         result = result & filecmp.cmp(s, g)
                     except IOError:
-                        print("Verification Error: File {} or {} cannot be found".format(src, golden))
+                        print(f"Verification Error: File {src} or {golden} cannot be found")
             return result, err
         else:
             raise Exception("Verification Error: Unknown comparing mode \"{}\" in the json profile".format(

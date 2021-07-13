@@ -24,8 +24,9 @@ if __name__ == '__main__':
         help="What is the target fitness for the evolution. Default ot execution time. Can be changed to power")
     parser.add_argument('--cxpb', type=float, default='0.8', metavar="RATE", help="Cross rate")
     parser.add_argument('--mupb', type=float, default='0.1', metavar="RATE", help="Mutation rate")
-    parser.add_argument('--err_rate', type=float, default='0.01', metavar="RATE",
-        help="Allowed maximum relative error generate from mutant comparing to the origin. Range from 0 to 1")
+    parser.add_argument('--err_rate', type=str, default='0.01', metavar="RATE",
+        help="Allowed maximum relative error generate from mutant comparing to the origin.\
+             Range from 0 to 1. Using '|' at the end to indicate absolute error.")
     # cut, replace, insert, swap, move, operand replace, cache
     parser.add_argument('--mutop', type=str, default='c,r,i,s,m,p', metavar="OP_STR",
         help="Specify mutation operations to be enabled during evolution. Operation are separated by comma.")
