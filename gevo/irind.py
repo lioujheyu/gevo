@@ -5,6 +5,8 @@ import sys
 import re
 from collections import Counter
 
+from gevo._llvm import __llvm_version__
+
 def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
     """
     return returnCode, mutated and encoded source, edit with UID
@@ -199,7 +201,7 @@ class llvmIRrep():
         self.edits = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd + x_cmd + op_cmd
 
     def ptx(self, outf):
-        proc = subprocess.run(['llc', "-march=nvptx64", "-mcpu="+self.mgpu, "-mattr="+self.mattr, '-o', outf],
+        proc = subprocess.run(['llc-'+__llvm_version__, "-march=nvptx64", "-mcpu="+self.mgpu, "-mattr="+self.mattr, '-o', outf],
                               stdout=subprocess.PIPE,
                               input=self.srcEnc)
 
