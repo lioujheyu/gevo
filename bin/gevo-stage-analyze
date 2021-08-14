@@ -1,18 +1,8 @@
-#!/usr/bin/env python3
-import argparse
-import subprocess
+#!/usr/bin/python3
 import json
 import sys
-import csv
-import filecmp
-from io import StringIO
-from itertools import cycle
 
 import pycuda.driver as cuda
-from deap import creator
-from deap import base
-from deap import tools
-
 from gevo import irind
 
 if __name__ == '__main__':
@@ -34,10 +24,7 @@ if __name__ == '__main__':
 
     pop = {}
     for entry in stage:
-        editsList = []
-        for editG in entry['edits']:
-            editsList.append([(e[0], e[1]) for e in editG])
-        pop[tuple(entry['fitness'])] = editsList 
+        pop[tuple(entry['fitness'])] = irind.encode_edits_from_list(entry['edits'])
 
     allfit = [tuple(entry['fitness']) for entry in stage]
     allfit = list(set(allfit))
@@ -62,8 +49,7 @@ if __name__ == '__main__':
     SM_MAJOR, SM_MINOR = cuda.Device(0).compute_capability()
     mgpu = 'sm_' + str(SM_MAJOR) + str(SM_MINOR)
 
-    ind = irind.llvmIRrep(initSrcEnc, mgpu, edits=pop[key])
-    ind.update_from_edits()
+    ind = irind.llvmIRrep(initSrcEnc, mgpu, pop[key])
     with open("dump.ll", 'w') as f:
         f.write(ind.srcEnc.decode())
     with open("dump.edit", 'w') as f:

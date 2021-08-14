@@ -3,9 +3,51 @@
 import subprocess
 import sys
 import re
-from collections import Counter
 
 from gevo._llvm import __llvm_version__
+
+class edit(tuple):
+    def __new__(cls, iterable):
+        return super().__new__(cls, iterable)
+
+    def serialize(self):
+        return [UID for e in self for UID in e]
+
+def encode_edits_from_list(lists: list):
+    '''For reading the edits from a json file where tuple is decode into list'''
+    sublist = []
+    for ele in lists:
+        if isinstance(ele[0], list):
+            sublist.append(encode_edits_from_list(ele))
+        elif isinstance(ele[0], str):
+            sublist = sublist + [tuple(ele)]
+
+    if isinstance(lists[0][0], list):
+        return tuple(sublist)
+    elif isinstance(lists[0][0], str):
+        return edit(sublist)
+    else:
+        print(lists)
+        raise Exception("Elements of the editlist is neither list nor str")
+
+def decode_edits(edits, mode='edit'):
+    result = []
+    if len(edits) == 0:
+        return result
+    for item in edits:
+        if isinstance(item, edit):
+            result.append(item)
+        else:
+            result = result + decode_edits(item, 'edit')
+
+    assert(all([isinstance(item, edit) for item in result]))
+
+    if mode == 'edit':
+        return result
+    elif mode == 'str':
+        return [ op for e in result for op in e.serialize() ]
+    else:
+        raise AttributeError(f"Unsupported mode:{mode} in decode_edits!")
 
 def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
     """
@@ -22,7 +64,7 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
                           stderr=subprocess.PIPE,
                           input=srcEncIn)
 
-    if proc.returncode != 0:
+    if proc.returncode != 0 and proc.returncode != 1:
         print(proc.stderr.decode(), file=sys.stderr)
         with open('error.ll', 'w') as f:
             f.write(proc.stdout.decode())
@@ -58,19 +100,22 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
                     editUID = [('-'+op, result.group(2))] + editUID
                 else:
                     editUID = [('-'+op, result.group(2) + ',' + result.group(4))] + editUID
-        except TypeError:
+        except TypeError as err:
             print(proc.stderr.decode(), file=sys.stderr)
             with open('error.ll', 'w') as f:
                 f.write(proc.stdout.decode())
             print(*mut_command)
-            raise Exception("Could not understand the result from llvm-mutate")
+            raise Exception("Could not understand the result from llvm-mutate") from err
 
     if proc.stderr.decode().find('no use') != -1:
-        return 1, mutateSrc, editUID
-    return 0, mutateSrc, editUID
+        return 1, mutateSrc, edit(editUID)
+    return 0, mutateSrc, edit(editUID)
 
-def rearrage(cmd):
+def sort_serialized_edits(cmd):
     cmdlist = list(cmd)
+    if all([isinstance(item, edit) for item in cmdlist]) is False:
+        raise Exception("Only sorting on a per-edit basis!")
+
     c_cmd  = sorted([c for c in cmdlist if c[0][0] == '-c'])
     r_cmd  = sorted([c for c in cmdlist if c[0][0] == '-r'])
     i_cmd  = sorted([c for c in cmdlist if c[0][0] == '-i'])
@@ -82,96 +127,116 @@ def rearrage(cmd):
     cmdlist = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd + x_cmd + op_cmd
     return cmdlist
 
-def diff(edits1, edits2):
-    c1 = Counter(edits1)
-    c2 = Counter(edits2)
-    diff1 = c1 - c2
-    diff2 = c2 - c1
-    sharedEdits = c1 - diff1
-    return list(sharedEdits.elements()), list(diff1.elements()), list(diff2.elements())
-
 def update_from_edits(idx, ind, resultList):
-    proc = subprocess.run(
-        ['llvm-mutate', '--not_use_result'] + ind.serialize_edits(),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        input=ind.srcEnc
-    )
-    if proc.returncode != 0 and proc.returncode != 1:
-        resultList[idx] = False
-    else:
-        ind.update(proc.stdout)
+    '''Function for thread safe'''
+    try:
+        ind.update_src_from_edits()
         resultList[idx] = True
-
-def serialize_edits_to_str(edits):
-    outstr = "+".join([";".join(["{} {}".format(edit[0], edit[1]) for edit in editG]) for editG in edits ])
-    return outstr
+    except llvmIRrepRuntimeError:
+        resultList[idx] = False
 
 def edits_as_key(edits):
-    return tuple([edit for editG in edits for edit in editG])
+    serialized_edits = decode_edits(edits)
+    serialized_edits = sort_serialized_edits(serialized_edits)
+
+    return tuple(serialized_edits)
+
+class llvmIRrepRuntimeError(RuntimeError):
+    pass
 
 class llvmIRrep():
     def __init__(self, srcEnc, mgpu, edits=None, mattr="+ptx70"):
         # default compilation argument to Nvidia pascal architecture.
         self.mgpu = mgpu
         self.mattr = mattr
-        self.srcEnc = srcEnc
+        self._srcEnc = srcEnc
+        self._lineSize = 0
         if edits is None:
-            self.edits = []
+            self._edits = []
+            self._serialized_edits = []
+            self._update_linesize()
         else:
-            self.edits = edits
-        self.update_linesize()
+            self._edits = list(edits)
+            self._serialized_edits = decode_edits(edits)
+            self.sort_serialized_edits()
+            self.update_src_from_edits()
 
+    @property
+    def edits(self):
+        return self._edits
+
+    @property
+    def serialized_edits(self):
+        return self._serialized_edits
+
+    @property
+    def srcEnc(self):
+        return self._srcEnc
+
+    @property
+    def lineSize(self):
+        return self._lineSize
+
+    @property
     def key(self):
-        return tuple([edit for editG in self.edits for edit in editG])
-
-    def __len__(self):
-        return len(self.edits)
+        return tuple(self._serialized_edits)
 
     def __eq__(self, other):
-        return self.edits == other.edits
+        if isinstance(other, llvmIRrep):
+            return self.key == other.key
+        return False
 
     def __hash__(self):
-        return hash(self.key())
+        return hash(self.key)
 
-    def serialize_edits(self):
-        if self.edits is None:
-            return None
-        return [arg for editG in self.edits for edit in editG for arg in edit]
-
-    def serialize_edits_to_str(self):
-        outstr = "+".join([";".join(["{} {}".format(edit[0], edit[1]) for edit in editG]) for editG in self.edits ])
-        return outstr
-
-
-    def update_linesize(self):
+    def _update_linesize(self):
         try:
             readline_proc = subprocess.run(['llvm-mutate', '-I'],
                                            stdout=subprocess.PIPE,
                                            stderr=subprocess.PIPE,
-                                           input=self.srcEnc,
+                                           input=self._srcEnc,
                                            check=True)
         except subprocess.CalledProcessError as err:
             print(err.stderr, file=sys.stderr)
-            raise Exception('llvm-mutate error in calculating line size')
+            raise llvmIRrepRuntimeError('llvm-mutate error in calculating line size') from err
 
-        self.lineSize = int(readline_proc.stderr.decode())
+        self._lineSize = int(readline_proc.stderr.decode())
 
-    def update(self, srcEnc):
-        self.srcEnc = srcEnc
-        self.update_linesize()
+    def _update_src(self, srcEnc):
+        self._srcEnc = srcEnc
+        self._update_linesize()
 
-    def update_from_edits(self, sweepEdits=False):
+    def update_edits(self, edits):
+        self._edits = list(edits)
+        self._serialized_edits = decode_edits(edits)
+        self.sort_serialized_edits()
+
+    def copy_from(self, other: 'llvmIRrep'):
+        if self is other:
+            return
+        self.mgpu = other.mgpu
+        self.mattr = other.mattr
+        self._srcEnc = other.srcEnc
+        self._lineSize = other.lineSize
+        if len(other.serialized_edits) == 0 and len(other.edits) != 0:
+            self.update_edits(other.edits)
+        else:
+            self._edits = list(other.edits)
+            self._serialized_edits = list(other.serialized_edits)
+    
+    def update_src_from_edits(self, sweepEdits=False):
+        assert(len(self.edits) != 0)
         if sweepEdits is False:
-            proc = subprocess.run(['llvm-mutate', '--not_use_result'] + self.serialize_edits(),
+            proc = subprocess.run(['llvm-mutate', '--not_use_result'] + decode_edits(self.serialized_edits, 'str'),
                                   stdout=subprocess.PIPE,
                                   stderr=subprocess.PIPE,
-                                  input=self.srcEnc)
-            if proc.returncode != 0 and proc.returncode != 1:
-                return False, proc.stderr
+                                  input=self._srcEnc)
+            if proc.returncode != 0:
+                self._srcEnc = None
+                raise llvmIRrepRuntimeError()
             mutateSrcEn = proc.stdout
         else:
-            raise Exception('Not fixed yet')
+            raise NotImplementedError
             # validEdits = []
             # mutateSrcEn = self.srcEnc
             # for edit in self.edits:
@@ -185,27 +250,28 @@ class llvmIRrep():
             #     validEdits.append(edit)
 
             # self.edits = validEdits
+        self._update_src(mutateSrcEn)
 
-        self.update(mutateSrcEn)
-        return True
+    def sort_serialized_edits(self):
+        if all([isinstance(item, edit) for item in self._serialized_edits]) is False:
+            raise TypeError("Only sorting on a per-edit basis!")
 
-    def rearrage(self):
-        c_cmd  = sorted([c for c in self.edits if c[0][0] == '-c'])
-        r_cmd  = sorted([c for c in self.edits if c[0][0] == '-r'])
-        i_cmd  = sorted([c for c in self.edits if c[0][0] == '-i'])
-        m_cmd  = sorted([c for c in self.edits if c[0][0] == '-m'])
-        s_cmd  = sorted([c for c in self.edits if c[0][0] == '-s'])
-        x_cmd  = sorted([c for c in self.edits if c[0][0] == '-x'])
-        op_cmd = sorted([c for c in self.edits if c[0][0] == '-p'])
+        c_cmd  = sorted([c for c in self.serialized_edits if c[0][0] == '-c'])
+        r_cmd  = sorted([c for c in self.serialized_edits if c[0][0] == '-r'])
+        i_cmd  = sorted([c for c in self.serialized_edits if c[0][0] == '-i'])
+        m_cmd  = sorted([c for c in self.serialized_edits if c[0][0] == '-m'])
+        s_cmd  = sorted([c for c in self.serialized_edits if c[0][0] == '-s'])
+        x_cmd  = sorted([c for c in self.serialized_edits if c[0][0] == '-x'])
+        op_cmd = sorted([c for c in self.serialized_edits if c[0][0] == '-p'])
 
-        self.edits = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd + x_cmd + op_cmd
+        self._serialized_edits = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd + x_cmd + op_cmd
 
     def ptx(self, outf):
         proc = subprocess.run(['llc-'+__llvm_version__, "-march=nvptx64", "-mcpu="+self.mgpu, "-mattr="+self.mattr, '-o', outf],
                               stdout=subprocess.PIPE,
-                              input=self.srcEnc)
+                              input=self._srcEnc)
 
         if proc.returncode != 0:
-            print(proc.stderr)
-            print(self.edits)
-            raise Exception('llc error')
+            print(proc.stderr.decode())
+            print(proc.stdout.decode())
+            raise llvmIRrepRuntimeError('llc error')

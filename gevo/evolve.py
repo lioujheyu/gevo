@@ -11,7 +11,6 @@ import filecmp
 import logging
 import io
 import os
-import re
 import time
 import gc
 import shutil
@@ -24,14 +23,12 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-import numpy
-
 from deap import base
 from deap import creator
 from deap import tools
 
 import pptx
-import signal, psutil
+import psutil
 
 from rich import print
 import rich.progress
@@ -41,8 +38,7 @@ from rich.logging import RichHandler
 import pycuda.driver as cuda
 
 from gevo import irind
-from gevo.irind import llvmMutateWrap
-from gevo.irind import update_from_edits
+from gevo.irind import edits_as_key, llvmMutateWrap
 from gevo import fuzzycompare
 
 # critical section of multithreading
@@ -68,6 +64,7 @@ class evolution:
             'c':0, 'r':0, 'i':0, 's':0, 'm':0, 'p':0, 'x':0
         },
     }
+    evalStats = {'cx':{'pass':[0],'fail':[0]}, 'mut':{'pass':[0],'fail':[0]}, 'epi':{'pass':[0],'fail':[0]}}
 
     class _testcase:
         def __init__(self, evolution, idx, kernel, bin, verifier):
@@ -108,6 +105,13 @@ class evolution:
         self.use_fitness_map = use_fitness_map
         self.popsize = popsize
         self.mutop = mutop.split(',')
+
+        try:
+            with open('editmap.pickle', 'rb') as editFitMapFile:
+                self.editFitMap = pickle.load(editFitMapFile)
+                print(f'[Initializing GEVO] Previous EditFitMap found. {len(self.editFitMap)} entries loaded')
+        except FileNotFoundError:
+            pass
 
         try:
             with open(llvm_src_filename, 'r') as f:
@@ -188,11 +192,14 @@ class evolution:
         self.ofits = [ tc.fitness[0] for tc in self.testcase]
         self.oerrs = [ tc.fitness[1] for tc in self.testcase]
         self.origin.fitness.values = (sum(self.ofits)/len(self.ofits), max(self.oerrs))
-        self.editFitMap[None] = self.origin.fitness.values
+        self.editFitMap[tuple()] = self.origin.fitness.values
         print(f"Average fitness of the original program: ({self.origin.fitness.values[0]:.2f}, {self.origin.fitness.values[1]:.2f})")
         print("Individual test cases:")
         for fit, err in zip(self.ofits, self.oerrs):
             print(f"\t({fit:.2f}, {err:.2f})")
+        self.positive_epistasis = {}
+        self.negative_epistasis = {}
+        self.need_discussion = {}
 
     def updateSlideFromPlot(self):
         pffits = [ind.fitness.values for ind in self.paretof]
@@ -230,9 +237,7 @@ class evolution:
             stageFileName = "stage/" + str(self.generation) + ".json"
 
         with open(stageFileName, 'w') as fp:
-            count = 0
             stage = [{'edits': ind.edits, 'fitness': ind.fitness.values} for ind in self.pop]
-            # allEdits = [ind.edits for ind in self.pop]
             json.dump(stage, fp, indent=2)
 
     def mutLog(self):
@@ -324,6 +329,87 @@ class evolution:
             raise Exception("Verification Error: Unknown comparing mode \"{}\" in the json profile".format(
                 self.verifier['mode']))
 
+    def identify_positive_epistasis(self, edits):
+        tmp_edits = list(edits)
+        ret_edits = []
+        while len(tmp_edits) != 0:
+            edit = tmp_edits[0]
+            if isinstance(edit, irind.edit):
+                mut_fields = edit[0][1].split(',')
+                on_mutated_instruction = False
+                for mut_field in mut_fields:
+                    try:
+                        suffix = mut_field.split('.', maxsplit=1)[1]
+                        if suffix.find('OP') == -1:
+                            on_mutated_instruction = True
+                            break
+                    except IndexError:
+                        pass
+                if on_mutated_instruction:
+                    tmp_edits.remove(edit)
+                    ret_edits.append(edit)
+                    continue
+            else: # complex edit cannot fail the test
+                assert(None not in self.editFitMap[edits_as_key(edit)])
+                tmp_edits.remove(edit)
+                ret_edits.append(edit)
+                continue
+
+            rest = [ e for e in (tmp_edits+ret_edits) if e != edit ]
+            edit_key = edits_as_key([edit])
+            if edit_key not in self.editFitMap.keys():
+                ind = creator.Individual(self.initSrcEnc, self.mgpu, [edit])
+                with lock:
+                    self.evaluate(ind, 'epi')
+
+            if None not in self.editFitMap[edit_key]:
+                tmp_edits.remove(edit)
+                ret_edits.append(edit)
+                continue
+
+            # Epistasis found. Check if epistasis map already has the record
+            with lock:
+                if edit in self.positive_epistasis.keys():
+                    found = False
+                    for dependant in self.positive_epistasis[edit]:
+                        if dependant in rest:
+                            found = True
+                            tmp_edits.remove(edit)
+                            if dependant in ret_edits:
+                                ret_edits.remove(dependant)
+                            else:
+                                tmp_edits.remove(dependant)
+                            ret_edits.append(tuple([edit, dependant]))
+                            break
+                    if found:
+                        continue
+
+                identified = False
+                for e_rest in rest:
+                    if edits_as_key([edit, e_rest]) not in self.editFitMap:
+                        ind = creator.Individual(self.initSrcEnc, self.mgpu, [edit, e_rest])
+                        self.evaluate(ind, 'epi')
+
+                    if None not in self.editFitMap[edits_as_key([edit, e_rest])]:
+                        if e_rest in ret_edits:
+                            ret_edits.remove(e_rest)
+                        else:
+                            tmp_edits.remove(e_rest)
+                        tmp_edits.remove(edit)
+                        ret_edits.append(tuple([edit, e_rest]))
+                        if e_rest not in self.positive_epistasis.setdefault(edit, []):
+                            self.positive_epistasis[edit].append(e_rest)
+                        identified = True
+                        break
+                if identified is True:
+                    continue
+                else:
+                    self.need_discussion.setdefault(edit, []).append(rest)
+            ret_edits.append(edit)
+            tmp_edits.remove(edit)
+        assert(edits_as_key(ret_edits) == edits_as_key(edits))
+        return ret_edits
+
     def mutLLVM(self, individual):
         trial = 0
         operations = self.mutop
@@ -341,71 +427,74 @@ class evolution:
             if rc < 0:
                 continue
 
-            test_ind = creator.Individual(self.initSrcEnc, self.mgpu)
-            test_ind.edits[:] = individual.edits + [editUID]
-            test_ind.rearrage()
-            if test_ind.update_from_edits() == False:
+            try:
+                test_ind = creator.Individual(self.initSrcEnc, self.mgpu, individual.edits + [editUID])
+            except irind.llvmIRrepRuntimeError:
                 continue
 
             with lock:
                 trial = trial + 1
-                fit = self.evaluate(test_ind)
-                print('m', end='', flush=True)
+                fit = self.evaluate(test_ind, 'mut')
+
             if None in fit:
                 self.mutStats['invalid'] = self.mutStats['invalid'] + 1
                 self.mutStats['op_fail'][op] = self.mutStats['op_fail'][op] + 1
                 continue
-
             self.mutStats['valid'] = self.mutStats['valid'] + 1
             self.mutStats['op_success'][op] = self.mutStats['op_success'][op] + 1
             self.mutStats['failDistribution'][str(trial)] = \
                 self.mutStats['failDistribution'][str(trial)] + 1 \
                 if str(trial) in self.mutStats['failDistribution'] else 1
-            individual.update(srcEnc=test_ind.srcEnc)
-            individual.edits.append(editUID)
-            individual.rearrage()
+
+            # if len(individual.edits) > 1:
+            #     complex_edits = self.identify_positive_epistasis(test_ind.edits)
+            #     if edits_as_key(complex_edits) != test_ind.key:
+            #         test_ind = creator.Individual(self.initSrcEnc, self.mgpu, complex_edits)
+            #         with lock:
+            #             fit = self.evaluate(test_ind, 'epi')
+            #         assert(None not in fit)
+            
+            individual.copy_from(test_ind)
             individual.fitness.values = fit
+
             return individual,
 
         print("Cannot get mutant to survive in {} trials".format(individual.lineSize*2))
         self.mutStats['failDistribution']['-1'] = self.mutStats['failDistribution']['-1'] + 1
         with lock:
-            fit = self.evaluate(individual)
+            fit = self.evaluate(individual, 'mut')
             individual.fitness.values = fit
         return individual,
 
     def cxOnePointLLVM(self, ind1, ind2):
         trial = 0
-        while trial < len(ind1) + len(ind2):
+        while trial < len(ind1.edits) + len(ind2.edits):
             shuffleEdits = ind1.edits + ind2.edits
             random.shuffle(shuffleEdits)
             point = random.randint(1, len(shuffleEdits)-1)
             cmd1 = shuffleEdits[:point]
             cmd2 = shuffleEdits[point:]
-            cmd1 = irind.rearrage(cmd1)
-            cmd2 = irind.rearrage(cmd2)
 
-            child1 = creator.Individual(self.initSrcEnc, self.mgpu)
-            child1.edits = list(cmd1)
-            child1.update_from_edits(sweepEdits=False)
-            child2 = creator.Individual(self.initSrcEnc, self.mgpu)
-            child2.edits = list(cmd2)
-            child2.update_from_edits(sweepEdits=False)
+            try:
+                child1 = creator.Individual(self.initSrcEnc, self.mgpu, cmd1)
+                child2 = creator.Individual(self.initSrcEnc, self.mgpu, cmd2)
+            except irind.llvmIRrepRuntimeError:
+                trial = trial + 1
+                continue
 
             with lock:
-                fit1 = self.evaluate(child1)
-                fit2 = self.evaluate(child2)
-                print('c', end='', flush=True)
+                fit1 = self.evaluate(child1, 'cx')
+                fit2 = self.evaluate(child2, 'cx')
 
             trial = trial + 1
             if None in fit1 and None in fit2:
                 continue
 
             if None not in fit1:
-                ind1 = child1
+                ind1.copy_from(child1)
                 ind1.fitness.values = fit1
             if None not in fit2:
-                ind2 = child2
+                ind2.copy_from(child2)
                 ind2.fitness.values = fit2
 
             return ind1, ind2
@@ -511,9 +600,16 @@ class evolution:
                 print("Can not find kernel \"{}\" from nvprof".format(self.kernels), file=sys.stderr)
                 return None, None
 
-    def evaluate(self, individual):
+    def evaluate(self, individual, mode=None):
+        if mode == 'cx':
+            print('c', end='', flush=True)
+        elif mode == 'mut':
+            print('m', end='', flush=True)
+        elif mode == 'epi':
+            print('e', end='', flush=True)
+
         # first to check whether we can find the same entry in the editFitmap
-        editkey = individual.key()
+        editkey = individual.key
         if self.use_fitness_map is True:
             if editkey in self.editFitMap:
                 print('r', end='', flush=True)
@@ -524,6 +620,8 @@ class evolution:
             individual.ptx(self.cudaPTX)
         except:
             self.editFitMap[editkey] = (None, None)
+            if mode is not None:
+                self.evalStats[mode]['fail'][-1] = self.evalStats[mode]['fail'][-1] + 1 
             return None, None
 
         with open('gevo.ll', 'w') as f:
@@ -540,6 +638,8 @@ class evolution:
 
             if fitness is None or err is None:
                 self.editFitMap[editkey] = (None, None)
+                if mode is not None:
+                    self.evalStats[mode]['fail'][-1] = self.evalStats[mode]['fail'][-1] + 1
                 return None, None
 
             fits.append(fitness)
@@ -549,6 +649,8 @@ class evolution:
         avg_fitness = sum(fits)/len(fits)
         # record the edits and the corresponding fitness in the map
         self.editFitMap[editkey] = (avg_fitness, max_err)
+        if mode is not None:
+            self.evalStats[mode]['pass'][-1] = self.evalStats[mode]['pass'][-1] + 1
         return avg_fitness, max_err
 
     def evolve(self, resumeGen):
@@ -559,11 +661,27 @@ class evolution:
             print("Initialize the population. Size {}".format(popSize))
             self.pop = self.toolbox.population(n=popSize)
 
-            # Initial 3x mutate to get diverse population
-            for ind in self.pop:
-                self.toolbox.mutate(ind)
-                self.toolbox.mutate(ind)
-                self.toolbox.mutate(ind)
+            with Progress(auto_refresh=False) as pbar:
+                task1 = pbar.add_task("", total=popSize)
+                for cnt, ind in enumerate(self.pop):
+                    pbar.update(task1, completed=cnt+1, refresh=True,
+                                description=f"Initializing Population with 3 mutations({cnt+1}/{popSize}), "\
+                                    f"m:(p:{self.evalStats['mut']['pass'][-1]},f:{self.evalStats['mut']['fail'][-1]}), "\
+                                    f"c:(p:{self.evalStats['cx']['pass'][-1]},f:{self.evalStats['cx']['fail'][-1]}), "\
+                                    f"e:(p:{self.evalStats['epi']['pass'][-1]},f:{self.evalStats['epi']['fail'][-1]})")
+                    _fit = (None, None)
+                    while None in _fit:
+                        _ind1 = creator.Individual(self.initSrcEnc, self.mgpu)
+                        _ind2 = creator.Individual(self.initSrcEnc, self.mgpu)
+                        _ind3 = creator.Individual(self.initSrcEnc, self.mgpu)
+                        self.toolbox.mutate(_ind1)
+                        self.toolbox.mutate(_ind2)
+                        self.toolbox.mutate(_ind3)
+                        _ind = creator.Individual(self.initSrcEnc, self.mgpu, _ind1.edits + _ind2.edits + _ind3.edits)
+                        _fit = self.evaluate(_ind)
+                    ind.copy_from(_ind)
+                    ind.fitness.values = _fit
+
             self.writeStage()
         else:
             if resumeGen == 0:
@@ -573,7 +691,7 @@ class evolution:
 
             try:
                 stage = json.load(open(stageFileName))
-                allEdits = [entry['edits'] for entry in stage]
+                allEdits = [ irind.encode_edits_from_list(entry['edits']) for entry in stage ]
             except:
                 print(f"GEVO Error in loading stage file \"{stageFileName}\"")
                 print(sys.exc_info())
@@ -586,24 +704,30 @@ class evolution:
 
             resultList = [False] * popSize
             for i, (edits, ind) in enumerate(zip(allEdits, self.pop)):
-                editsList = []
-                for editG in edits:
-                    editsList.append([(e[0], e[1]) for e in editG])
-                ind.edits = editsList
+                ind.update_edits(edits)
                 threadPool.append(
-                    Thread(target=update_from_edits, args=(i, ind, resultList))
+                    Thread(target=irind.update_from_edits, args=(i, ind, resultList))
                 )
                 threadPool[-1].start()
 
             for i, ind in enumerate(self.pop):
                 threadPool[i].join()
                 if resultList[i] == False:
-                    raise Exception("Could not reconstruct ind from edits:{}".format(ind.edits))
+                    raise Exception(f"Could not reconstruct ind from edits:{ind.edits}")
                 fitness = self.evaluate(ind)
                 if None in fitness:
                     for edit in ind.edits:
                         print(edit)
                     raise Exception("Encounter invalid individual during reconstruction")
+
+                complex_edits = self.identify_positive_epistasis(ind.edits)
+                if edits_as_key(complex_edits) != ind.key:
+                    tmp_ind = creator.Individual(self.initSrcEnc, self.mgpu, complex_edits)
+                    fitness = self.evaluate(tmp_ind, 'epi')
+                    assert(None not in fitness)
+                    ind._update_src(tmp_ind.srcEnc)
+
+                ind.update_edits(complex_edits)
                 ind.fitness.values = fitness
 
         # This is to assign the crowding distance to the individuals
@@ -621,6 +745,7 @@ class evolution:
         self.mutDistFile = open('mut_dist.csv', 'w')
         self.mutLog()
         minExecTime = record["min"][0]
+        print("")
 
         # pffits = [ind.fitness.values for ind in self.paretof]
         # fits = [ind.fitness.values for ind in self.pop if ind not in pffits]
@@ -635,10 +760,8 @@ class evolution:
             # Clone the selected individuals
             offspring = list(map(self.toolbox.clone, offspring))
 
-            # for i, ind in enumerate(self.paretof):
             paretofGen = tools.sortNondominated(self.pop, popSize, first_front_only=True)
             paretofGen[0].sort(key=lambda ind: ind.fitness.values[0])
-            # for i, ind in enumerate(paretofGen[0]):
             with open("g{}_noerr.ll".format(self.generation), 'w') as f:
                 f.write(paretofGen[0][-1].srcEnc.decode())
             with open("g{}_noerr.edit".format(self.generation), 'w') as f:
@@ -651,10 +774,13 @@ class evolution:
                 pickle.dump(self.editFitMap, emfile)
 
             self.generation = self.generation + 1
+            for _, value in self.evalStats.items():
+                value['pass'].append(0)
+                value['fail'].append(0)
 
             threadPool.clear()
             for child1, child2 in zip(offspring[::2], offspring[1::2]):
-                if len(child1) < 2 and len(child2) < 2:
+                if len(child1.edits) < 2 and len(child2.edits) < 2:
                     continue
                 if random.random() < self.CXPB:
                     threadPool.append(
@@ -673,18 +799,33 @@ class evolution:
             for thread in threadPool:
                 thread.join()
 
-            # remove dead individual whose fitness is None
-            self.pop = [ ind for ind in self.pop if ind.fitness.values is not None]
+            dead_inds = [ ind for ind in self.pop if None in ind.fitness.values ]
+            assert(len(dead_inds) == 0)
 
-            # self.pop = self.toolbox.select(self.pop + offspring, popSize)
-            elite = self.toolbox.select(self.pop, 16)
+            elite = self.toolbox.select(self.pop, int(popSize/64))
+            for ind in elite:
+                if len(ind.edits) > 1:
+                    complex_edits = self.identify_positive_epistasis(ind.edits)
+                    test_ind = creator.Individual(self.initSrcEnc, self.mgpu, complex_edits)
+                    if edits_as_key(complex_edits) != ind.key:
+                        with lock:
+                            fit = self.evaluate(test_ind, 'epi')
+                        assert(None not in fit)
+                        ind.fitness.values = fit
+
+                    ind.copy_from(test_ind)
+
             self.pop = self.toolbox.select(elite + offspring, popSize)
             record = self.stats.compile(self.pop)
             self.logbook.record(gen=self.generation, evals=popSize, **record)
             self.paretof.update(self.pop)
 
             print("")
+            print(f"m:(p:{self.evalStats['mut']['pass'][-1]},f:{self.evalStats['mut']['fail'][-1]}), "\
+                  f"c:(p:{self.evalStats['cx']['pass'][-1]},f:{self.evalStats['cx']['fail'][-1]}), "\
+                  f"e:(p:{self.evalStats['epi']['pass'][-1]},f:{self.evalStats['epi']['fail'][-1]})")
             print(self.logbook.stream)
             self.mutLog()
             self.updateSlideFromPlot()
             self.writeStage()
+            print("") # an empty line as a generation separator
