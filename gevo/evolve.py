@@ -360,9 +360,9 @@ class evolution:
             edit_key = edits_as_key([edit])
             if edit_key not in self.editFitMap.keys():
                 if updateEpiTable:
-                    ind = creator.Individual(self.initSrcEnc, self.mgpu, [edit])
+                    tmp_ind = creator.Individual(self.initSrcEnc, self.mgpu, [edit])
                     with lock:
-                        self.evaluate(ind, 'epi')
+                        self.evaluate(tmp_ind, 'epi')
                 else:
                     tmp_edits.remove(edit)
                     ret_edits.append(edit)
@@ -395,8 +395,8 @@ class evolution:
                     identified = False
                     for e_rest in rest:
                         if edits_as_key([edit, e_rest]) not in self.editFitMap:
-                            ind = creator.Individual(self.initSrcEnc, self.mgpu, [edit, e_rest])
-                            self.evaluate(ind, 'epi')
+                            tmp_ind = creator.Individual(self.initSrcEnc, self.mgpu, [edit, e_rest])
+                            self.evaluate(tmp_ind, 'epi')
 
                         if None not in self.editFitMap[edits_as_key([edit, e_rest])]:
                             if e_rest in ret_edits:
@@ -415,7 +415,7 @@ class evolution:
                         self.need_discussion.setdefault(edit, []).append(rest)
             ret_edits.append(edit)
             tmp_edits.remove(edit)
-        assert(edits_as_key(ret_edits) == edits_as_key(edits))
+        assert(edits_as_key(ret_edits) == ind.key)
         ind.update_edits(ret_edits)
 
     def mutLLVM(self, individual):
