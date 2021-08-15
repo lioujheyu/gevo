@@ -329,8 +329,10 @@ class evolution:
             raise Exception("Verification Error: Unknown comparing mode \"{}\" in the json profile".format(
                 self.verifier['mode']))
 
-    def identify_positive_epistasis(self, edits):
-        tmp_edits = list(edits)
+    def identify_positive_epistasis(self, ind, updateEpiTable=True):
+        if (len(ind.edits) < 2):
+            return
+        tmp_edits = list(ind.edits)
         ret_edits = []
         while len(tmp_edits) != 0:
             edit = tmp_edits[0]
@@ -355,12 +357,16 @@ class evolution:
                 ret_edits.append(edit)
                 continue
 
-            rest = [ e for e in (tmp_edits+ret_edits) if e != edit ]
             edit_key = edits_as_key([edit])
             if edit_key not in self.editFitMap.keys():
-                ind = creator.Individual(self.initSrcEnc, self.mgpu, [edit])
-                with lock:
-                    self.evaluate(ind, 'epi')
+                if updateEpiTable:
+                    ind = creator.Individual(self.initSrcEnc, self.mgpu, [edit])
+                    with lock:
+                        self.evaluate(ind, 'epi')
+                else:
+                    tmp_edits.remove(edit)
+                    ret_edits.append(edit)
+                    continue
 
             if None not in self.editFitMap[edit_key]:
                 tmp_edits.remove(edit)
@@ -368,6 +374,7 @@ class evolution:
                 continue
 
             # Epistasis found. Check if epistasis map already has the record
+            rest = [ e for e in (tmp_edits+ret_edits) if e != edit ]
             with lock:
                 if edit in self.positive_epistasis.keys():
                     found = False
@@ -384,31 +391,32 @@ class evolution:
                     if found:
                         continue
 
-                identified = False
-                for e_rest in rest:
-                    if edits_as_key([edit, e_rest]) not in self.editFitMap:
-                        ind = creator.Individual(self.initSrcEnc, self.mgpu, [edit, e_rest])
-                        self.evaluate(ind, 'epi')
+                if updateEpiTable:
+                    identified = False
+                    for e_rest in rest:
+                        if edits_as_key([edit, e_rest]) not in self.editFitMap:
+                            ind = creator.Individual(self.initSrcEnc, self.mgpu, [edit, e_rest])
+                            self.evaluate(ind, 'epi')
 
-                    if None not in self.editFitMap[edits_as_key([edit, e_rest])]:
-                        if e_rest in ret_edits:
-                            ret_edits.remove(e_rest)
-                        else:
-                            tmp_edits.remove(e_rest)
-                        tmp_edits.remove(edit)
-                        ret_edits.append(tuple([edit, e_rest]))
-                        if e_rest not in self.positive_epistasis.setdefault(edit, []):
-                            self.positive_epistasis[edit].append(e_rest)
-                        identified = True
-                        break
-                if identified is True:
-                    continue
-                else:
-                    self.need_discussion.setdefault(edit, []).append(rest)
+                        if None not in self.editFitMap[edits_as_key([edit, e_rest])]:
+                            if e_rest in ret_edits:
+                                ret_edits.remove(e_rest)
+                            else:
+                                tmp_edits.remove(e_rest)
+                            tmp_edits.remove(edit)
+                            ret_edits.append(tuple([edit, e_rest]))
+                            if e_rest not in self.positive_epistasis.setdefault(edit, []):
+                                self.positive_epistasis[edit].append(e_rest)
+                            identified = True
+                            break
+                    if identified is True:
+                        continue
+                    else:
+                        self.need_discussion.setdefault(edit, []).append(rest)
             ret_edits.append(edit)
             tmp_edits.remove(edit)
         assert(edits_as_key(ret_edits) == edits_as_key(edits))
-        return ret_edits
+        ind.update_edits(ret_edits)
 
     def mutLLVM(self, individual):
         trial = 0
@@ -425,6 +433,9 @@ class evolution:
             else:
                 rc, mutateSrc, editUID = llvmMutateWrap(individual.srcEnc, op, str(line1), str(line2))
             if rc < 0:
+                continue
+
+            if editUID in individual.serialized_edits:
                 continue
 
             try:
@@ -446,14 +457,7 @@ class evolution:
                 self.mutStats['failDistribution'][str(trial)] + 1 \
                 if str(trial) in self.mutStats['failDistribution'] else 1
 
-            # if len(individual.edits) > 1:
-            #     complex_edits = self.identify_positive_epistasis(test_ind.edits)
-            #     if edits_as_key(complex_edits) != test_ind.key:
-            #         test_ind = creator.Individual(self.initSrcEnc, self.mgpu, complex_edits)
-            #         with lock:
-            #             fit = self.evaluate(test_ind, 'epi')
-            #         assert(None not in fit)
-            
+            self.identify_positive_epistasis(test_ind, updateEpiTable=False)
             individual.copy_from(test_ind)
             individual.fitness.values = fit
 
@@ -472,8 +476,9 @@ class evolution:
             shuffleEdits = ind1.edits + ind2.edits
             random.shuffle(shuffleEdits)
             point = random.randint(1, len(shuffleEdits)-1)
-            cmd1 = shuffleEdits[:point]
-            cmd2 = shuffleEdits[point:]
+            # prevent redundant edit
+            cmd1 = list(set(shuffleEdits[:point]))
+            cmd2 = list(set(shuffleEdits[point:]))
 
             try:
                 child1 = creator.Individual(self.initSrcEnc, self.mgpu, cmd1)
@@ -499,7 +504,7 @@ class evolution:
 
             return ind1, ind2
 
-        print("Cannot get crossover to survive in {} trials".format(len(ind1) + len(ind2)))
+        print("Cannot get crossover to survive in {} trials".format(len(ind1.edits) + len(ind2.edits)))
         return ind1, ind2
 
     def execNVprofRetrive(self, testcase):
@@ -720,14 +725,7 @@ class evolution:
                         print(edit)
                     raise Exception("Encounter invalid individual during reconstruction")
 
-                complex_edits = self.identify_positive_epistasis(ind.edits)
-                if edits_as_key(complex_edits) != ind.key:
-                    tmp_ind = creator.Individual(self.initSrcEnc, self.mgpu, complex_edits)
-                    fitness = self.evaluate(tmp_ind, 'epi')
-                    assert(None not in fitness)
-                    ind._update_src(tmp_ind.srcEnc)
-
-                ind.update_edits(complex_edits)
+                self.identify_positive_epistasis(ind)
                 ind.fitness.values = fitness
 
         # This is to assign the crowding distance to the individuals
@@ -804,16 +802,7 @@ class evolution:
 
             elite = self.toolbox.select(self.pop, int(popSize/64))
             for ind in elite:
-                if len(ind.edits) > 1:
-                    complex_edits = self.identify_positive_epistasis(ind.edits)
-                    test_ind = creator.Individual(self.initSrcEnc, self.mgpu, complex_edits)
-                    if edits_as_key(complex_edits) != ind.key:
-                        with lock:
-                            fit = self.evaluate(test_ind, 'epi')
-                        assert(None not in fit)
-                        ind.fitness.values = fit
-
-                    ind.copy_from(test_ind)
+                self.identify_positive_epistasis(ind)
 
             self.pop = self.toolbox.select(elite + offspring, popSize)
             record = self.stats.compile(self.pop)
