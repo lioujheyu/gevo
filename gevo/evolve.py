@@ -93,7 +93,7 @@ class evolution:
                     self.golden.append(golden_filename)
 
     def __init__(self, kernel, bin, profile, mutop, timeout=30, fitness='time', popsize=128,
-                 llvm_src_filename='cuda-device-only-kernel.ll', use_fitness_map=True,
+                 llvm_src_filename='cuda-device-only-kernel.ll', use_fitness_map=True, combine_positive_epistasis=True,
                  CXPB=0.8, MUPB=0.1, err_rate='0.01'):
         self.CXPB = CXPB
         self.MUPB = MUPB
@@ -103,6 +103,7 @@ class evolution:
         self.timeout = timeout
         self.fitness_function = fitness
         self.use_fitness_map = use_fitness_map
+        self.combine_positive_epistasis = combine_positive_epistasis
         self.popsize = popsize
         self.mutop = mutop.split(',')
 
@@ -351,8 +352,9 @@ class evolution:
                     tmp_edits.remove(edit)
                     ret_edits.append(edit)
                     continue
-            else: # complex edit cannot fail the test
-                assert(None not in self.editFitMap[edits_as_key(edit)])
+            else: 
+                # complex edit cannot fail the test, thus won't depends on other. 
+                # Only other depend on them
                 tmp_edits.remove(edit)
                 ret_edits.append(edit)
                 continue
@@ -457,7 +459,8 @@ class evolution:
                 self.mutStats['failDistribution'][str(trial)] + 1 \
                 if str(trial) in self.mutStats['failDistribution'] else 1
 
-            self.identify_positive_epistasis(test_ind, updateEpiTable=False)
+            if self.combine_positive_epistasis:
+                self.identify_positive_epistasis(test_ind, updateEpiTable=False)
             individual.copy_from(test_ind)
             individual.fitness.values = fit
 
@@ -725,7 +728,8 @@ class evolution:
                         print(edit)
                     raise Exception("Encounter invalid individual during reconstruction")
 
-                self.identify_positive_epistasis(ind)
+                if self.combine_positive_epistasis:
+                    self.identify_positive_epistasis(ind)
                 ind.fitness.values = fitness
 
         # This is to assign the crowding distance to the individuals
@@ -801,8 +805,9 @@ class evolution:
             assert(len(dead_inds) == 0)
 
             elite = self.toolbox.select(self.pop, int(popSize/64))
-            for ind in elite:
-                self.identify_positive_epistasis(ind)
+            if self.combine_positive_epistasis:
+                for ind in elite:
+                    self.identify_positive_epistasis(ind)
 
             self.pop = self.toolbox.select(elite + offspring, popSize)
             record = self.stats.compile(self.pop)

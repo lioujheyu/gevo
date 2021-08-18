@@ -4,7 +4,10 @@ import subprocess
 import sys
 import re
 
-from gevo._llvm import __llvm_version__
+try:
+    from gevo._llvm import __llvm_version__
+except ImportError:
+    pass # A testing path
 
 class edit(tuple):
     def __new__(cls, iterable):
@@ -13,22 +16,22 @@ class edit(tuple):
     def serialize(self):
         return [UID for e in self for UID in e]
 
-def encode_edits_from_list(lists: list):
+def encode_edits_from_list(lists):
     '''For reading the edits from a json file where tuple is decode into list'''
     sublist = []
     for ele in lists:
-        if isinstance(ele[0], list):
+        if isinstance(ele[0], list) or isinstance(ele[0], tuple):
             sublist.append(encode_edits_from_list(ele))
         elif isinstance(ele[0], str):
             sublist = sublist + [tuple(ele)]
 
-    if isinstance(lists[0][0], list):
+    if isinstance(lists[0][0], list) or isinstance(lists[0][0], tuple):
         return tuple(sublist)
     elif isinstance(lists[0][0], str):
         return edit(sublist)
     else:
-        print(lists)
-        raise Exception("Elements of the editlist is neither list nor str")
+        print(lists[0][0])
+        raise Exception("Elements of the editlist is neither list or tuple nor str")
 
 def decode_edits(edits, mode='edit'):
     result = []
