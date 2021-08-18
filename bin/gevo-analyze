@@ -17,6 +17,7 @@ from rich import print as rprint
 
 from gevo import __version__
 from gevo.evolve import evolution
+import gevo.irind as irind
 from gevo.irind import edits_as_key
 
 logging.basicConfig(format="%(message)s" ,level="NOTSET" ,handlers=[RichHandler()])
@@ -38,15 +39,16 @@ class program(evolution):
         try:
             with open(editf, 'r') as f:
                 self.edits = ast.literal_eval(f.read())
+                self.edits = irind.encode_edits_from_list(self.edits)
         except FileNotFoundError:
             log.error(f"Edit File:{editf} cannot be found")
             sys.exit(1)
 
         rprint("Evaluate edit file ", end="", flush=True)
-        self.fullEditsInd = self.toolbox.individual()
-        self.fullEditsInd.edits = self.edits
-        if self.fullEditsInd.update_from_edits() is False:
-            raise Exception("Edit file cannot be compiled")
+        try:
+            self.fullEditsInd = self.toolbox.individual(edits = self.edits)
+        except irind.llvmIRrepRuntimeError as err:
+            raise Exception("Edit file cannot be compiled") from err
         fitness_values = [self.evaluate(self.fullEditsInd) for i in range(3)]
         if None in [value[0] for value in fitness_values]:
             raise Exception("Edit file fails the verification")
@@ -55,9 +57,9 @@ class program(evolution):
         self.fullEditsInd.fitness.values = (fit, err)
         rprint("")
         log.info(f"Fitness of the program with all edits: {self.fullEditsInd.fitness}")    
-    
+
     def remove_weak_edits(self, edits, threshold=0.01):
-        ''' 
+        '''
         :param edits: removing weak edit from edits
         :returns: The useful edits
         '''
@@ -70,12 +72,9 @@ class program(evolution):
             removal_list = []
             indPrior = deepcopy(self.fullEditsInd)
             for cnt, edit in enumerate(edits):
-                indPriorwoEdit = self.toolbox.individual()
-
-                indPriorwoEdit.edits = deepcopy(indPrior.edits)
-                indPriorwoEdit.edits.remove(edit)
-
-                if indPriorwoEdit.update_from_edits() == False:
+                try:
+                    indPriorwoEdit = self.toolbox.individual(edits=[e for e in indPrior.edits if e is not edit])
+                except irind.llvmIRrepRuntimeError:
                     log.info(f"{edit[0]} not removed: cannot compile")
                     continue
 
@@ -110,8 +109,10 @@ class program(evolution):
         pop = self.toolbox.population(n=len(edits))
         fitness = [None] * len(edits)
         for ind,edit,fits in zip(pop, self.edits, fitness):
-            ind.edits = [edit]
-            if ind.update_from_edits() == False:
+            ind.update_edits([edit])
+            try:
+                ind.update_src_from_edits()
+            except irind.llvmIRrepRuntimeError:
                 rprint(f"{edit}: cannot compile")
                 continue
             fits = [self.evaluate(ind)[0] for i in range(3)]
@@ -135,11 +136,9 @@ class program(evolution):
         log.info("Start searching for indepedent/epistasis edits ...")
         independentEdits = []
         for edit in edits:
-            editOnlyInd = self.toolbox.individual()
-            # editOnlyInd.edits = [edit]
-            editOnlyInd.edits = deepcopy(independentEdits)
-            editOnlyInd.edits.append(edit)
-            if editOnlyInd.update_from_edits() is False:
+            try:
+                editOnlyInd = self.toolbox.individual(edits=independentEdits+[edit])
+            except irind.llvmIRrepRuntimeError:
                 continue
             fitness_values = [self.evaluate(editOnlyInd) for i in range(3)]
             if None in [value[0] for value in fitness_values]:
@@ -197,10 +196,10 @@ class program(evolution):
                                 description=f"{l} combination: ({cnt}/{len(list(itertools.combinations(edits, l)))})")
                     cnt = cnt + 1
 
-                    subEditsInd = self.toolbox.individual()
-                    subEditsInd.edits = subEdits
                     edit_str = ' '.join([ str(editIdxMap[edits_as_key([edit])]) for edit in subEdits ])
-                    if subEditsInd.update_from_edits() is False:
+                    try:
+                        subEditsInd = self.toolbox.individual(edits=subEdits)
+                    except irind.llvmIRrepRuntimeError:
                         fcomb.write(f'{edit_str},c,c,c\n')
                         continue
                     fitness_values = [self.evaluate(subEditsInd) for i in range(3)]

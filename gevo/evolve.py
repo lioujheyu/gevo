@@ -728,8 +728,8 @@ class evolution:
                         print(edit)
                     raise Exception("Encounter invalid individual during reconstruction")
 
-                if self.combine_positive_epistasis:
-                    self.identify_positive_epistasis(ind)
+                # if self.combine_positive_epistasis:
+                #     self.identify_positive_epistasis(ind)
                 ind.fitness.values = fitness
 
         # This is to assign the crowding distance to the individuals
