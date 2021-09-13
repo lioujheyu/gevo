@@ -73,7 +73,7 @@ class program(evolution):
             indPrior = deepcopy(self.fullEditsInd)
             for cnt, edit in enumerate(edits):
                 try:
-                    indPriorwoEdit = self.toolbox.individual(edits=[e for e in indPrior.edits if e is not edit])
+                    indPriorwoEdit = self.toolbox.individual(edits=[e for e in indPrior.edits if e != edit])
                 except irind.llvmIRrepRuntimeError:
                     log.info(f"{edit[0]} not removed: cannot compile")
                     continue
@@ -106,17 +106,16 @@ class program(evolution):
         return indPrior.edits
     
     def edittest(self, edits):
-        pop = self.toolbox.population(n=len(edits))
         fitness = [None] * len(edits)
-        for ind,edit,fits in zip(pop, self.edits, fitness):
-            ind.update_edits([edit])
+        for edit,fits in zip(edits, fitness):
             try:
-                ind.update_src_from_edits()
+                ind = self.toolbox.individual(edits=[edit])
             except irind.llvmIRrepRuntimeError:
                 rprint(f"{edit}: cannot compile")
                 continue
-            fits = [self.evaluate(ind)[0] for i in range(3)]
-            errs = [self.evaluate(ind)[1] for i in range(3)]
+            fitness_values = [self.evaluate(ind) for i in range(3)]
+            fits = [value[0] for value in fitness_values]
+            errs = [value[1] for value in fitness_values]
             if None in fits:
                 rprint(f"{edit}: execution failed")
                 continue
@@ -148,9 +147,9 @@ class program(evolution):
             editOnlyInd.fitness.values = (fit, err)
             runtimeDiffDown = self.origin.fitness.values[0] - editOnlyInd.fitness.values[0]
 
-            fullExceptEditInd = self.toolbox.individual()
-            fullExceptEditInd.edits = [ e for e in edits if e not in editOnlyInd.edits]
-            if fullExceptEditInd.update_from_edits() is False:
+            try:
+                fullExceptEditInd = self.toolbox.individual(edits=[ e for e in edits if e not in editOnlyInd.edits])
+            except irind.llvmIRrepRuntimeError:
                 continue
             fitness_values = [self.evaluate(fullExceptEditInd) for i in range(3)]
             if None in [value[0] for value in fitness_values]:
