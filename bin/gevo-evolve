@@ -65,6 +65,8 @@ if __name__ == '__main__':
     print("            Mutation Rate: {}".format(args.mupb))
     print("      Tolerate Error Rate: {}".format(args.err_rate))
     print("   Enabled Mut Operations: {}".format(args.mutop))
+    if args.random_seed is not None:
+        print("              Random Seed: {}".format(args.random_seed))
 
     try:
         evo.evolve(args.resume)
