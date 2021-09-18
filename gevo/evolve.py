@@ -93,8 +93,8 @@ class evolution:
                     self.golden.append(golden_filename)
 
     def __init__(self, kernel, bin, profile, mutop, timeout=30, fitness='time', popsize=128,
-                 llvm_src_filename='cuda-device-only-kernel.ll', use_fitness_map=True, combine_positive_epistasis=True,
-                 CXPB=0.8, MUPB=0.1, err_rate='0.01'):
+                 llvm_src_filename='cuda-device-only-kernel.ll', use_fitness_map=True, combine_positive_epistasis=False,
+                 CXPB=0.8, MUPB=0.1, err_rate='0.01', global_seed=None):
         self.CXPB = CXPB
         self.MUPB = MUPB
         self.err_rate = err_rate
@@ -106,6 +106,7 @@ class evolution:
         self.combine_positive_epistasis = combine_positive_epistasis
         self.popsize = popsize
         self.mutop = mutop.split(',')
+        self.global_seed = global_seed
 
         try:
             with open('editmap.pickle', 'rb') as editFitMapFile:
@@ -475,13 +476,22 @@ class evolution:
 
     def cxOnePointLLVM(self, ind1, ind2):
         trial = 0
+        if ind1 == ind2:
+            return ind1, ind2
+        
+        editSet1 = set(ind1.edits)
+        editSet2 = set(ind2.edits)
+        intersectionEdits = list(editSet1.intersection(editSet2))
+        symmetricEdits = list(editSet1.symmetric_difference(editSet2))
+        if len(symmetricEdits) == 1:
+            return ind1, ind2 
+
         while trial < len(ind1.edits) + len(ind2.edits):
-            shuffleEdits = ind1.edits + ind2.edits
-            random.shuffle(shuffleEdits)
-            point = random.randint(1, len(shuffleEdits)-1)
-            # prevent redundant edit
-            cmd1 = list(set(shuffleEdits[:point]))
-            cmd2 = list(set(shuffleEdits[point:]))
+            
+            random.shuffle(symmetricEdits)
+            point = random.randint(1, len(symmetricEdits)-1)
+            cmd1 = intersectionEdits + symmetricEdits[:point]
+            cmd2 = intersectionEdits + symmetricEdits[point:]
 
             try:
                 child1 = creator.Individual(self.initSrcEnc, self.mgpu, cmd1)
@@ -663,6 +673,9 @@ class evolution:
 
     def evolve(self, resumeGen):
         threadPool = []
+        if self.global_seed is not None:
+            random.seed(self.global_seed)
+
         if resumeGen == -1:
             # PopSize must be a multiple by 4 for SelTournamentDOD to function properly
             popSize = self.popsize
