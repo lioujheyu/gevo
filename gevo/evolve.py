@@ -421,20 +421,21 @@ class evolution:
         assert(edits_as_key(ret_edits) == ind.key)
         ind.update_edits(ret_edits)
 
-    def mutLLVM(self, individual):
+    def mutLLVM(self, individual, rng:random.Random):
         trial = 0
         operations = self.mutop
         while trial < individual.lineSize*2:
-            line1 = random.randint(1, individual.lineSize)
-            line2 = random.randint(1, individual.lineSize)
+            line1 = rng.randint(1, individual.lineSize)
+            line2 = rng.randint(1, individual.lineSize)
             while line1 == line2:
-                line2 = random.randint(1, individual.lineSize)
+                line2 = rng.randint(1, individual.lineSize)
 
-            op = random.choice(operations)
+            seed = rng.getrandbits(16)
+            op = rng.choice(operations)
             if op == 'p' or op == 'x':
-                rc, mutateSrc, editUID = llvmMutateWrap(individual.srcEnc, op, str('Rand'), str('Rand'))
+                rc, _, editUID = llvmMutateWrap(individual.srcEnc, op, str('Rand'), str('Rand'), seed)
             else:
-                rc, mutateSrc, editUID = llvmMutateWrap(individual.srcEnc, op, str(line1), str(line2))
+                rc, _, editUID = llvmMutateWrap(individual.srcEnc, op, str(line1), str(line2), seed)
             if rc < 0:
                 continue
 
@@ -474,22 +475,23 @@ class evolution:
             individual.fitness.values = fit
         return individual,
 
-    def cxOnePointLLVM(self, ind1, ind2):
+    def cxOnePointLLVM(self, ind1, ind2, rng:random.Random):
         trial = 0
         if ind1 == ind2:
             return ind1, ind2
         
         editSet1 = set(ind1.edits)
         editSet2 = set(ind2.edits)
-        intersectionEdits = list(editSet1.intersection(editSet2))
-        symmetricEdits = list(editSet1.symmetric_difference(editSet2))
+        # The following sorting it to make the order deterministic
+        intersectionEdits = sorted(list(editSet1.intersection(editSet2)))
+        symmetricEdits = sorted(list(editSet1.symmetric_difference(editSet2)))
         if len(symmetricEdits) == 1:
             return ind1, ind2 
 
         while trial < len(ind1.edits) + len(ind2.edits):
             
-            random.shuffle(symmetricEdits)
-            point = random.randint(1, len(symmetricEdits)-1)
+            rng.shuffle(symmetricEdits)
+            point = rng.randint(1, len(symmetricEdits)-1)
             cmd1 = intersectionEdits + symmetricEdits[:point]
             cmd2 = intersectionEdits + symmetricEdits[point:]
 
@@ -675,10 +677,14 @@ class evolution:
         threadPool = []
         if self.global_seed is not None:
             random.seed(self.global_seed)
+        mut_rng = random.Random(random.getrandbits(16))
+        cx_rng = random.Random(random.getrandbits(16))
 
         if resumeGen == -1:
             # PopSize must be a multiple by 4 for SelTournamentDOD to function properly
             popSize = self.popsize
+            self.mut_local_rng = [ random.Random(random.getrandbits(16)) for i in range(popSize) ]
+            self.cx_local_rng = [ random.Random(random.getrandbits(16)) for i in range(popSize) ]
             print("Initialize the population. Size {}".format(popSize))
             self.pop = self.toolbox.population(n=popSize)
 
@@ -695,9 +701,9 @@ class evolution:
                         _ind1 = creator.Individual(self.initSrcEnc, self.mgpu)
                         _ind2 = creator.Individual(self.initSrcEnc, self.mgpu)
                         _ind3 = creator.Individual(self.initSrcEnc, self.mgpu)
-                        self.toolbox.mutate(_ind1)
-                        self.toolbox.mutate(_ind2)
-                        self.toolbox.mutate(_ind3)
+                        self.toolbox.mutate(_ind1, mut_rng)
+                        self.toolbox.mutate(_ind2, mut_rng)
+                        self.toolbox.mutate(_ind3, mut_rng)
                         _ind = creator.Individual(self.initSrcEnc, self.mgpu, _ind1.edits + _ind2.edits + _ind3.edits)
                         _fit = self.evaluate(_ind)
                     ind.copy_from(_ind)
@@ -719,6 +725,8 @@ class evolution:
                 exit(1)
 
             popSize = len(allEdits)
+            self.mut_local_rng = [ random.Random(random.getrandbits(16)) for i in range(popSize) ]
+            self.cx_local_rng = [ random.Random(random.getrandbits(16)) for i in range(popSize) ]
             print("Resume the population from {}. Size {}".format(stageFileName, popSize))
             self.pop = self.toolbox.population(n=popSize)
             self.generation = resumeGen
@@ -794,22 +802,22 @@ class evolution:
                 value['fail'].append(0)
 
             threadPool.clear()
-            for child1, child2 in zip(offspring[::2], offspring[1::2]):
+            for cnt, (child1, child2) in enumerate(zip(offspring[::2], offspring[1::2])):
                 if len(child1.edits) < 2 and len(child2.edits) < 2:
                     continue
-                if random.random() < self.CXPB:
+                if cx_rng.random() < self.CXPB:
                     threadPool.append(
-                        Thread(target=self.toolbox.mate, args=(child1, child2)))
+                        Thread(target=self.toolbox.mate, args=(child1, child2, self.cx_local_rng[cnt])))
                     threadPool[-1].start()
             for thread in threadPool:
                 thread.join()
 
             threadPool.clear()
-            for mutant in offspring:
-                if random.random() < self.MUPB:
+            for cnt, mutant in enumerate(offspring):
+                if mut_rng.random() < self.MUPB:
                     del mutant.fitness.values
                     threadPool.append(
-                        Thread(target=self.toolbox.mutate, args=(mutant,)))
+                        Thread(target=self.toolbox.mutate, args=(mutant, self.mut_local_rng[cnt])))
                     threadPool[-1].start()
             for thread in threadPool:
                 thread.join()

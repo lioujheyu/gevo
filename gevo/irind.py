@@ -52,7 +52,7 @@ def decode_edits(edits, mode='edit'):
     else:
         raise AttributeError(f"Unsupported mode:{mode} in decode_edits!")
 
-def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
+def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str, seed=None):
     """
     return returnCode, mutated and encoded source, edit with UID
     """
@@ -61,6 +61,9 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str):
         mut_command.extend(['-'+op, field1])
     else:
         mut_command.extend(['-'+op, field1 + ',' + field2])
+
+    if seed is not None:
+        mut_command.extend(['-d', '--seed', str(seed)])
 
     proc = subprocess.run(mut_command,
                           stdout=subprocess.PIPE,
