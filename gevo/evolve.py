@@ -106,14 +106,9 @@ class evolution:
         self.combine_positive_epistasis = combine_positive_epistasis
         self.popsize = popsize
         self.mutop = mutop.split(',')
-        self.global_seed = global_seed
-
-        try:
-            with open('editmap.pickle', 'rb') as editFitMapFile:
-                self.editFitMap = pickle.load(editFitMapFile)
-                print(f'[Initializing GEVO] Previous EditFitMap found. {len(self.editFitMap)} entries loaded')
-        except FileNotFoundError:
-            pass
+        self.rng = {}
+        if global_seed is not None:
+            random.seed(global_seed)
 
         try:
             with open(llvm_src_filename, 'r') as f:
@@ -235,12 +230,23 @@ class evolution:
         pathlib.Path('stage').mkdir(exist_ok=True)
         if self.generation == 0:
             stageFileName = "stage/startedits.json"
+            rngFileName = "stage/startrng.pickle"
         else:
             stageFileName = "stage/" + str(self.generation) + ".json"
+            rngFileName = "stage/" + str(self.generation) + "_rng.pickle"
 
         with open(stageFileName, 'w') as fp:
             stage = [{'edits': ind.edits, 'fitness': ind.fitness.values} for ind in self.pop]
             json.dump(stage, fp, indent=2)
+
+        rng_state = {}
+        rng_state['global'] = random.getstate()
+        rng_state['cx'] = self.rng['cx'].getstate()
+        rng_state['mut'] = self.rng['mut'].getstate()
+        rng_state['cx_local'] = [ rng.getstate() for rng in self.rng['cx_local']]
+        rng_state['mut_local'] = [ rng.getstate() for rng in self.rng['mut_local']]
+        with open(rngFileName, 'wb') as fp:
+            pickle.dump(rng_state, fp)
 
     def mutLog(self):
         print("gen {}".format(self.generation), file=self.mutLogFile)
@@ -675,16 +681,14 @@ class evolution:
 
     def evolve(self, resumeGen):
         threadPool = []
-        if self.global_seed is not None:
-            random.seed(self.global_seed)
-        mut_rng = random.Random(random.getrandbits(16))
-        cx_rng = random.Random(random.getrandbits(16))
+        self.rng['mut'] = random.Random(random.getrandbits(16))
+        self.rng['cx'] = random.Random(random.getrandbits(16))
 
         if resumeGen == -1:
             # PopSize must be a multiple by 4 for SelTournamentDOD to function properly
             popSize = self.popsize
-            self.mut_local_rng = [ random.Random(random.getrandbits(16)) for i in range(popSize) ]
-            self.cx_local_rng = [ random.Random(random.getrandbits(16)) for i in range(popSize) ]
+            self.rng['mut_local'] = [ random.Random(random.getrandbits(16)) for i in range(popSize) ]
+            self.rng['cx_local'] = [ random.Random(random.getrandbits(16)) for i in range(popSize) ]
             print("Initialize the population. Size {}".format(popSize))
             self.pop = self.toolbox.population(n=popSize)
 
@@ -701,9 +705,9 @@ class evolution:
                         _ind1 = creator.Individual(self.initSrcEnc, self.mgpu)
                         _ind2 = creator.Individual(self.initSrcEnc, self.mgpu)
                         _ind3 = creator.Individual(self.initSrcEnc, self.mgpu)
-                        self.toolbox.mutate(_ind1, mut_rng)
-                        self.toolbox.mutate(_ind2, mut_rng)
-                        self.toolbox.mutate(_ind3, mut_rng)
+                        self.toolbox.mutate(_ind1, self.rng['mut'])
+                        self.toolbox.mutate(_ind2, self.rng['mut'])
+                        self.toolbox.mutate(_ind3, self.rng['mut'])
                         _ind = creator.Individual(self.initSrcEnc, self.mgpu, _ind1.edits + _ind2.edits + _ind3.edits)
                         _fit = self.evaluate(_ind)
                     ind.copy_from(_ind)
@@ -713,8 +717,10 @@ class evolution:
         else:
             if resumeGen == 0:
                 stageFileName = "stage/startedits.json"
+                rngFileName   = "stage/startrng.pickle"
             else:
                 stageFileName = "stage/" + str(resumeGen) + ".json"
+                rngFileName   = "stage/" + str(self.generation) + "_rng.pickle"
 
             try:
                 stage = json.load(open(stageFileName))
@@ -724,10 +730,37 @@ class evolution:
                 print(sys.exc_info())
                 exit(1)
 
+            try:
+                with open('stage/editmap.pickle', 'rb') as editFitMapFile:
+                    print('[resuming GEVO] Previous EditFitMap found ... ', end='')
+                    self.editFitMap = pickle.load(editFitMapFile)
+                    print(f'{len(self.editFitMap)} entries loaded')
+            except FileNotFoundError:
+                pass
+
             popSize = len(allEdits)
-            self.mut_local_rng = [ random.Random(random.getrandbits(16)) for i in range(popSize) ]
-            self.cx_local_rng = [ random.Random(random.getrandbits(16)) for i in range(popSize) ]
-            print("Resume the population from {}. Size {}".format(stageFileName, popSize))
+
+            try:
+                print(f'[resuming GEVO] Loading random number generator from {rngFileName} ... ', end='')
+                with open(rngFileName, 'rb') as fp:
+                    rng_state = pickle.load(fp)
+                random.setstate(rng_state['global'])
+                self.rng['cx'].setstate(rng_state['cx'])
+                self.rng['mut'].setstate(rng_state['mut'])
+                self.rng['mut_local'] = [ random.Random() for i in range(popSize) ]
+                for rng, state in zip(self.rng['mut_local'], rng_state['mut_local']):
+                    rng.setstate(state)
+                self.rng['cx_local'] = [ random.Random() for i in range(popSize) ]
+                for rng, state in zip(self.rng['cx_local'], rng_state['cx_local']):
+                    rng.setstate(state)
+                print('done')
+            except FileNotFoundError:
+                print(f"GEVO Error in loading rng file \"{rngFileName}\"")
+                print(sys.exc_info())
+                exit(1)
+            
+            
+            print(f"[resuming GEVO] Rebuilding the population from {stageFileName}. Size {popSize}")
             self.pop = self.toolbox.population(n=popSize)
             self.generation = resumeGen
 
@@ -793,7 +826,7 @@ class evolution:
                 f.write(paretofGen[0][0].srcEnc.decode())
             with open("g{}_maxerr.edit".format(self.generation), 'w') as f:
                 print(paretofGen[0][0].edits, file=f)
-            with open("editmap.pickle", 'wb') as emfile:
+            with open("stage/editmap.pickle", 'wb') as emfile:
                 pickle.dump(self.editFitMap, emfile)
 
             self.generation = self.generation + 1
@@ -805,19 +838,19 @@ class evolution:
             for cnt, (child1, child2) in enumerate(zip(offspring[::2], offspring[1::2])):
                 if len(child1.edits) < 2 and len(child2.edits) < 2:
                     continue
-                if cx_rng.random() < self.CXPB:
+                if self.rng['cx'].random() < self.CXPB:
                     threadPool.append(
-                        Thread(target=self.toolbox.mate, args=(child1, child2, self.cx_local_rng[cnt])))
+                        Thread(target=self.toolbox.mate, args=(child1, child2, self.rng['cx_local'][cnt])))
                     threadPool[-1].start()
             for thread in threadPool:
                 thread.join()
 
             threadPool.clear()
             for cnt, mutant in enumerate(offspring):
-                if mut_rng.random() < self.MUPB:
+                if self.rng['mut'].random() < self.MUPB:
                     del mutant.fitness.values
                     threadPool.append(
-                        Thread(target=self.toolbox.mutate, args=(mutant, self.mut_local_rng[cnt])))
+                        Thread(target=self.toolbox.mutate, args=(mutant, self.rng['mut_local'][cnt])))
                     threadPool[-1].start()
             for thread in threadPool:
                 thread.join()
