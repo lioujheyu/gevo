@@ -812,6 +812,8 @@ class evolution:
         self.mutLogFile = open('mut_stat.log', 'w')
         self.mutDistFile = open('mut_dist.csv', 'w')
         self.mutLog()
+        self.progressFile = open('progress.csv', 'w')
+        self.progressFile.write(f'{self.generation},{record["min"][0]},\n')
         minExecTime = record["min"][0]
         print("")
 
@@ -886,6 +888,7 @@ class evolution:
                   f"e:(p:{self.evalStats['epi']['pass'][-1]},f:{self.evalStats['epi']['fail'][-1]})")
             print(self.logbook.stream)
             self.mutLog()
+            self.progressFile.write(f'{self.generation},{record["min"][0]},\n')
             self.updateSlideFromPlot()
             self.writeStage()
             print("") # an empty line as a generation separator
