@@ -16,6 +16,7 @@ import gc
 import shutil
 from itertools import cycle
 from threading import Thread
+from threading import Event
 from threading import Lock
 
 # Avoid Not-Find-Display problem
@@ -51,6 +52,8 @@ class evolution:
 
     # Content
     pop = []
+    threadPool = []
+    teminateEvent = Event()
     generation = 0
     presentation = pptx.Presentation()
 
@@ -431,6 +434,9 @@ class evolution:
         trial = 0
         operations = self.mutop
         while trial < individual.lineSize*2:
+            if self.teminateEvent.is_set():
+                return individual,
+
             line1 = rng.randint(1, individual.lineSize)
             line2 = rng.randint(1, individual.lineSize)
             while line1 == line2:
@@ -454,6 +460,8 @@ class evolution:
                 continue
 
             with lock:
+                if self.teminateEvent.is_set():
+                    return individual,
                 trial = trial + 1
                 fit = self.evaluate(test_ind, 'mut')
 
@@ -495,7 +503,9 @@ class evolution:
             return ind1, ind2 
 
         while trial < len(ind1.edits) + len(ind2.edits):
-            
+            if self.teminateEvent.is_set():
+                return ind1, ind2
+
             rng.shuffle(symmetricEdits)
             point = rng.randint(1, len(symmetricEdits)-1)
             cmd1 = intersectionEdits + symmetricEdits[:point]
@@ -509,6 +519,8 @@ class evolution:
                 continue
 
             with lock:
+                if self.teminateEvent.is_set():
+                    return ind1, ind2
                 fit1 = self.evaluate(child1, 'cx')
                 fit2 = self.evaluate(child2, 'cx')
 
@@ -574,6 +586,8 @@ class evolution:
             proc.terminate()
             proc.wait()
             self.mutStats['infinite'] = self.mutStats['infinite'] + 1
+            return None, None
+        except KeyboardInterrupt:
             return None, None
 
         program_output = stdout.decode()
@@ -680,7 +694,6 @@ class evolution:
         return avg_fitness, max_err
 
     def evolve(self, resumeGen):
-        threadPool = []
         self.rng['mut'] = random.Random(random.getrandbits(16))
         self.rng['cx'] = random.Random(random.getrandbits(16))
 
@@ -720,7 +733,7 @@ class evolution:
                 rngFileName   = "stage/startrng.pickle"
             else:
                 stageFileName = "stage/" + str(resumeGen) + ".json"
-                rngFileName   = "stage/" + str(self.generation) + "_rng.pickle"
+                rngFileName   = "stage/" + str(resumeGen) + "_rng.pickle"
 
             try:
                 stage = json.load(open(stageFileName))
@@ -759,7 +772,6 @@ class evolution:
                 print(sys.exc_info())
                 exit(1)
             
-            
             print(f"[resuming GEVO] Rebuilding the population from {stageFileName}. Size {popSize}")
             self.pop = self.toolbox.population(n=popSize)
             self.generation = resumeGen
@@ -767,13 +779,13 @@ class evolution:
             resultList = [False] * popSize
             for i, (edits, ind) in enumerate(zip(allEdits, self.pop)):
                 ind.update_edits(edits)
-                threadPool.append(
+                self.threadPool.append(
                     Thread(target=irind.update_from_edits, args=(i, ind, resultList))
                 )
-                threadPool[-1].start()
+                self.threadPool[-1].start()
 
             for i, ind in enumerate(self.pop):
-                threadPool[i].join()
+                self.threadPool[i].join()
                 if resultList[i] == False:
                     raise Exception(f"Could not reconstruct ind from edits:{ind.edits}")
                 fitness = self.evaluate(ind)
@@ -834,25 +846,25 @@ class evolution:
                 value['pass'].append(0)
                 value['fail'].append(0)
 
-            threadPool.clear()
+            self.threadPool.clear()
             for cnt, (child1, child2) in enumerate(zip(offspring[::2], offspring[1::2])):
                 if len(child1.edits) < 2 and len(child2.edits) < 2:
                     continue
                 if self.rng['cx'].random() < self.CXPB:
-                    threadPool.append(
+                    self.threadPool.append(
                         Thread(target=self.toolbox.mate, args=(child1, child2, self.rng['cx_local'][cnt])))
-                    threadPool[-1].start()
-            for thread in threadPool:
+                    self.threadPool[-1].start()
+            for thread in self.threadPool:
                 thread.join()
 
-            threadPool.clear()
+            self.threadPool.clear()
             for cnt, mutant in enumerate(offspring):
                 if self.rng['mut'].random() < self.MUPB:
                     del mutant.fitness.values
-                    threadPool.append(
+                    self.threadPool.append(
                         Thread(target=self.toolbox.mutate, args=(mutant, self.rng['mut_local'][cnt])))
-                    threadPool[-1].start()
-            for thread in threadPool:
+                    self.threadPool[-1].start()
+            for thread in self.threadPool:
                 thread.join()
 
             dead_inds = [ ind for ind in self.pop if None in ind.fitness.values ]
@@ -877,3 +889,20 @@ class evolution:
             self.updateSlideFromPlot()
             self.writeStage()
             print("") # an empty line as a generation separator
+
+    def stop_evolve(self):
+        sys.stderr = open(os.devnull, "w")
+        self.teminateEvent.set()
+        subprocess.run(['killall', self.appBinary])
+        subprocess.run(['killall', 'llvm-mutate'])
+        while len(self.threadPool) > 0:
+            self.threadPool = [ t for t in self.threadPool if t.is_alive() ]
+            time.sleep(0)
+
+        print("   Valid variant: {}".format(self.mutStats['valid']))
+        print(" Invalid variant: {}".format(self.mutStats['invalid']))
+        print("Infinite variant: {}".format(self.mutStats['infinite']))
+        self.mutLog()
+        if self.generation > 0:
+            self.presentation.save('progress.pptx')
+

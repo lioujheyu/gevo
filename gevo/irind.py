@@ -65,10 +65,13 @@ def llvmMutateWrap(srcEncIn, op:str, field1:str, field2:str, seed=None):
     if seed is not None:
         mut_command.extend(['-d', '--seed', str(seed)])
 
-    proc = subprocess.run(mut_command,
-                          stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE,
-                          input=srcEncIn)
+    try:
+        proc = subprocess.run(mut_command,
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE,
+                              input=srcEncIn)
+    except KeyboardInterrupt:
+        return -1, srcEncIn, None
 
     if proc.returncode != 0 and proc.returncode != 1:
         print(proc.stderr.decode(), file=sys.stderr)
@@ -205,6 +208,8 @@ class llvmIRrep():
         except subprocess.CalledProcessError as err:
             print(err.stderr, file=sys.stderr)
             raise llvmIRrepRuntimeError('llvm-mutate error in calculating line size') from err
+        except KeyboardInterrupt:
+            return
 
         self._lineSize = int(readline_proc.stderr.decode())
 
@@ -233,10 +238,14 @@ class llvmIRrep():
     def update_src_from_edits(self, sweepEdits=False):
         assert(len(self.edits) != 0)
         if sweepEdits is False:
-            proc = subprocess.run(['llvm-mutate', '--not_use_result'] + decode_edits(self.serialized_edits, 'str'),
-                                  stdout=subprocess.PIPE,
-                                  stderr=subprocess.PIPE,
-                                  input=self._srcEnc)
+            try:
+                proc = subprocess.run(['llvm-mutate', '--not_use_result'] + decode_edits(self.serialized_edits, 'str'),
+                                      stdout=subprocess.PIPE,
+                                      stderr=subprocess.PIPE,
+                                      input=self._srcEnc)
+            except KeyboardInterrupt:
+                return
+
             if proc.returncode != 0:
                 self._srcEnc = None
                 raise llvmIRrepRuntimeError()
@@ -273,9 +282,16 @@ class llvmIRrep():
         self._serialized_edits = s_cmd + m_cmd + i_cmd + r_cmd + c_cmd + x_cmd + op_cmd
 
     def ptx(self, outf):
-        proc = subprocess.run(['llc-'+__llvm_version__, "-march=nvptx64", "-mcpu="+self.mgpu, "-mattr="+self.mattr, '-o', outf],
-                              stdout=subprocess.PIPE,
-                              input=self._srcEnc)
+        try:
+            proc = subprocess.run(['llc-'+__llvm_version__,
+                                   "-march=nvptx64",
+                                   "-mcpu="+self.mgpu,
+                                   "-mattr="+self.mattr,
+                                   '-o', outf],
+                                  stdout=subprocess.PIPE,
+                                  input=self._srcEnc)
+        except KeyboardInterrupt:
+            return
 
         if proc.returncode != 0:
             print(proc.stderr.decode())
