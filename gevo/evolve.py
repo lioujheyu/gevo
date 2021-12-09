@@ -325,7 +325,10 @@ class evolution:
                     raise Exception("Verification Error: fuzzy mode is not a single or a list of the boolean value")
 
                 if fuzzy:
-                    rc, maxerr, avgerr = fuzzycompare.file(s, g, self.err_rate)
+                    try:
+                        rc, maxerr, avgerr = fuzzycompare.file(s, g, self.err_rate)
+                    except IndexError:
+                        return False, 1
                     # if rc < 0:
                     #     raise Exception(msg)
                     result = result & (True if rc==0 else False)
@@ -889,6 +892,7 @@ class evolution:
             print(self.logbook.stream)
             self.mutLog()
             self.progressFile.write(f'{self.generation},{record["min"][0]},\n')
+            self.progressFile.flush()
             self.updateSlideFromPlot()
             self.writeStage()
             print("") # an empty line as a generation separator

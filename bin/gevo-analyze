@@ -8,6 +8,7 @@ import sys
 import logging
 import ast
 import itertools
+import pickle
 from copy import deepcopy
 
 from rich.logging import RichHandler
@@ -25,6 +26,7 @@ log=logging.getLogger("main")
 
 class program(evolution):
     def __init__(self, editf, kernel, bin, profile, timeout=30, fitness='time',
+                 editmap=None,
                  llvm_src_filename='cuda-device-only-kernel.ll', err_rate=0.01):
         super().__init__(
             kernel=kernel,
@@ -36,6 +38,16 @@ class program(evolution):
             mutop='',
             use_fitness_map=False )
 
+        if editmap is not None:
+            try:
+                with open(editmap, 'rb') as editFitMapFile:
+                    print('[resuming GEVO] Previous EditFitMap found ... ', end='')
+                    self.editFitMap = pickle.load(editFitMapFile)
+                    print(f'{len(self.editFitMap)} entries loaded')
+            except FileNotFoundError:
+                log.error(f"Editmapfile:{editmap} cannot be found")
+                sys.exit(1)
+        
         try:
             with open(editf, 'r') as f:
                 self.edits = ast.literal_eval(f.read())
@@ -170,6 +182,101 @@ class program(evolution):
             rprint(independentEdits, file=f)
         return independentEdits, epistasis
 
+    def evolve_path_searching(self, edits):
+        editIdxMap = {edits_as_key([edit]): cnt for cnt, edit in enumerate(edits)}
+
+        grid = Table.grid()
+        grid.add_column(justify="right", style="bold blue")
+        grid.add_column()
+        for cnt, edit in enumerate(edits):
+            grid.add_row(str(cnt)+': ', str(edit))
+        rprint(grid)
+        
+        fcomb = open("path_find.txt", 'w')
+        rprint(grid, file=fcomb)
+
+        best_comb = None
+        best_imp = 0
+        
+        with Progress(auto_refresh=False) as pbar:
+            task1 = pbar.add_task(f"", total=len(list(itertools.combinations(edits, 2))))
+            cnt = 0
+            for subEdits in itertools.combinations(edits, 2): 
+                fcomb.flush()
+                pbar.update(task1, completed=cnt, refresh=True,
+                            description=f"{2} combination: ({cnt}/{len(list(itertools.combinations(edits, 2)))})")
+                cnt = cnt + 1
+
+                edit_str = ' '.join([ str(editIdxMap[edits_as_key([edit])]) for edit in subEdits ])
+                try:
+                    subEditsInd = self.toolbox.individual(edits=subEdits)
+                except irind.llvmIRrepRuntimeError:
+                    continue
+                fitness_values = [self.evaluate(subEditsInd) for i in range(3)]
+                if None in [value[0] for value in fitness_values]:
+                    continue
+                fit = min([value[0] for value in fitness_values])
+                err = min([value[1] for value in fitness_values])
+                subEditsInd.fitness.values = (fit, err)
+                improvement = self.origin.fitness.values[0] / fit
+                if improvement < 1.01:
+                    continue
+
+                rprint(f'[ {edit_str}]: ({fit:.2f}, {err:.2f}), Imp:{improvement:.2f}')
+                fcomb.write(f'{edit_str},{fit:.2f},{err:.2f},{improvement:.2f}\n')
+
+                if improvement > best_imp:
+                    best_imp = improvement
+                    best_comb = subEdits
+            rprint(f'Best comb in 2: {best_comb}: {best_imp:.2f}')
+            fcomb.write(f'Best comb in 2: {best_comb}: {best_imp:.2f}\n')
+        
+        for l in range(3, len(edits)):
+            rest_edits = [ e for e in edits if e not in best_comb ]
+            fcomb.write(f"{l} combinations\n")
+            cur_best_comb = list(best_comb)
+            with Progress(auto_refresh=False) as pbar:
+                task1 = pbar.add_task(f"", total=len(rest_edits))
+                cnt = 0
+                for edit in rest_edits:
+                    subEdits = list(best_comb)
+                    subEdits.append(edit)
+                    fcomb.flush()
+                    best_edit_str = ' '.join([ str(editIdxMap[edits_as_key([e])]) for e in cur_best_comb ])
+                    pbar.update(task1, completed=cnt, refresh=True,
+                                description=f"{l} combination(current best:[{best_edit_str}]): ({cnt}/{len(rest_edits)})")
+                    cnt = cnt + 1
+
+                    edit_str = ' '.join([ str(editIdxMap[edits_as_key([e])]) for e in subEdits ])
+                    try:
+                        subEditsInd = self.toolbox.individual(edits=subEdits)
+                    except irind.llvmIRrepRuntimeError:
+                        continue
+                    fitness_values = [self.evaluate(subEditsInd) for i in range(3)]
+                    if None in [value[0] for value in fitness_values]:
+                        continue
+                    fit = min([value[0] for value in fitness_values])
+                    err = min([value[1] for value in fitness_values])
+                    subEditsInd.fitness.values = (fit, err)
+                    improvement = self.origin.fitness.values[0] / fit
+                    if improvement < 1.01:
+                        continue
+
+                    rprint(f'[ {edit_str}]: ({fit:.2f}, {err:.2f}), Imp:{improvement:.2f}')
+                    fcomb.write(f'{edit_str},{fit:.2f},{err:.2f},{improvement:.2f}\n')
+
+                    if improvement > best_imp:
+                        best_imp = improvement
+                        cur_best_comb = subEdits
+
+                best_comb = cur_best_comb
+            
+            rprint(f'Best comb in {l}: {best_comb}: {best_imp:.2f}')
+            fcomb.write(f'Best comb in 2 {best_comb}: {best_imp:.2f}\n')
+
+        fcomb.close()
+        
+    
     def group_test(self, edits):
         log.info("Start evaluating all edit combinations iteratively ...")
         editIdxMap = {edits_as_key([edit]): cnt for cnt, edit in enumerate(edits)}
@@ -228,6 +335,8 @@ if __name__ == '__main__':
         help="The timeout period to evaluate the CUDA application")
     parser.add_argument('-fitf', '--fitness_function', type=str, default='time',
         help="What is the target fitness for the evolution. Default ot execution time. Can be changed to power")
+    parser.add_argument('--editmap', type=str,
+        help="Loading the pre-generated edit-fit map to avoid previously tested edit set")
     parser.add_argument('--err_rate', type=str, default='0.01',
         help="Allowed maximum relative error generate from mutant comparing to the origin")
     parser.add_argument('--version', action='version', version='gevo-' + __version__)
@@ -248,6 +357,7 @@ if __name__ == '__main__':
         profile=profile,
         timeout=args.timeout,
         fitness=args.fitness_function,
+        editmap=args.editmap,
         err_rate=args.err_rate)
 
     table = Table.grid(expand=True)
@@ -273,6 +383,7 @@ if __name__ == '__main__':
             rprint("2) remove weak edits")
             rprint("3) group independent/epistasis edits")
             rprint("4) test edit combinations exhaustively")
+            rprint("5) search the evolving path from given edits")
             op = input("Chose the analysis operation you want to go over: ")
 
             if op == '0':
@@ -287,6 +398,8 @@ if __name__ == '__main__':
                 curEdits = indEdits if groupOp == 1 else epistasisEdits
             elif op == '4':
                 alyz.group_test(curEdits)
+            elif op == '5':
+                alyz.evolve_path_searching(curEdits)
             else:
                 log.warning(f"Invalid selection: {op}")
     except KeyboardInterrupt:
