@@ -40,7 +40,7 @@ import pycuda.driver as cuda
 
 from gevo import irind
 from gevo.irind import edits_as_key, llvmMutateWrap
-from gevo import fuzzycompare
+from gevo import fuzzycompare, variancecalc
 
 # critical section of multithreading
 lock = Lock()
@@ -70,30 +70,49 @@ class evolution:
     evalStats = {'cx':{'pass':[0],'fail':[0]}, 'mut':{'pass':[0],'fail':[0]}, 'epi':{'pass':[0],'fail':[0]}}
 
     class _testcase:
-        def __init__(self, evolution, idx, kernel, bin, verifier):
+        def __init__(self, evolution, idx, kernel, bin, verifier, n_samples=100):
             self.idx = idx
+            self.num_samples = n_samples
             self.kernels = kernel
             self.appBinary = bin
             self.verifier = verifier
             self.args = []
             self.golden = []
+            self.variance = []
             self._evolution = evolution
 
         def evaluate(self):
             # Since golden has been filled up, passing this testcase into resultcompare
             # won't compare anything which is exactly what we want.
-            # Evaluate 3 times and get the minimum number
-            fitness = [ self._evolution.execNVprofRetrive(self) for i in range(3)]
+            fitness = []
+            
+            # Evaluate {self.num_samples} times and get the minimum number
+            golden_run = []
+            for i in range(self.num_samples):
+                fitness.append(self._evolution.execNVprofRetrive(self))
+                if None in fitness:
+                    print(self.args)
+                    raise Exception("Original binary execution error") 
+
+                if self.verifier['mode'] == 'file':
+                    for fname in self.verifier['output']:
+                        golden_run_filename = f"{fname}.golden{str(self.idx)}.{i}"
+                        os.rename(fname, golden_run_filename)
+                        golden_run.append(golden_run_filename)
+
+            variancecalc.file(golden_run)
+            
+            if self.verifier['mode'] == 'file':
+                for fname in self.verifier['output']:
+                    golden_filename = f"{fname}.golden{str(self.idx)}"
+                    self.golden.append(golden_filename)
+            
             self.fitness = (min([ value[0] for value in fitness ]), min([ value[1] for value in fitness ]))
             if None in self.fitness:
                 print(self.args)
                 raise Exception("Original binary execution error")
 
-            if self.verifier['mode'] == 'file':
-                for fname in self.verifier['output']:
-                    golden_filename = fname + '.golden' + str(self.idx)
-                    os.rename(fname, golden_filename)
-                    self.golden.append(golden_filename)
+            
 
     def __init__(self, kernel, bin, profile, mutop, timeout=30, fitness='time', popsize=128,
                  llvm_src_filename='cuda-device-only-kernel.ll', use_fitness_map=True, combine_positive_epistasis=False,
@@ -188,6 +207,7 @@ class evolution:
                 tc.args = arg
                 tc.evaluate()
                 progress.update(task, advance=1)
+        # Calculate variance
 
         self.ofits = [ tc.fitness[0] for tc in self.testcase]
         self.oerrs = [ tc.fitness[1] for tc in self.testcase]
@@ -208,7 +228,12 @@ class evolution:
         plt.title("Program variant performance - Generation {}".format(self.generation))
         plt.xlabel("Runtime(ms)")
         plt.ylabel("Error(%)")
-        err_rate = float(self.err_rate[0:-2]) if self.err_rate[-1] == '|' else float(self.err_rate)
+        if self.err_rate[-1] == '|':
+            err_rate = float(self.err_rate[0:-2])
+        elif self.err_rate[-1] == 's':
+            err_rate = float(self.err_rate[0:-2])
+        else:
+            float(self.err_rate)
         plt.ylim(ymin=-(float(err_rate)*100/20), ymax=float(err_rate)*100)
         plt.xticks(rotation=45)
         plt.scatter([fit[0]/1000 for fit in fits], [fit[1]*100 for fit in fits],
@@ -326,7 +351,10 @@ class evolution:
 
                 if fuzzy:
                     try:
-                        rc, maxerr, avgerr = fuzzycompare.file(s, g, self.err_rate)
+                        if self.err_rate[-1] == 's':
+                            rc, maxerr, avgerr = fuzzycompare.file(s, f"{g}.mean", self.err_rate, f"{g}.stddev")
+                        else:
+                            rc, maxerr, avgerr = fuzzycompare.file(s, g, self.err_rate)
                     except IndexError:
                         return False, 1
                     # if rc < 0:

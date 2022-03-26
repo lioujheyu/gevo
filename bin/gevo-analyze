@@ -99,7 +99,8 @@ class program(evolution):
                 err = max([value[1] for value in fitness_values])
                 indPriorwoEdit.fitness.values = (fit, err)
                 improvement = indPrior.fitness.values[0]/fit
-                if improvement > 1-threshold and abs(err - indPrior.fitness.values[1]) < 0.01*threshold:
+                # if improvement > 1-threshold and abs(err - indPrior.fitness.values[1]) < 0.01*threshold:
+                if improvement > 1-threshold :
                     removal_list.append(edit)
                     log.info(f"{edit[0]} removed: {fit:.2f}. Improvement: {improvement:.2f}. Error:{err}")
                     indPrior = indPriorwoEdit
@@ -325,6 +326,63 @@ class program(evolution):
 
         fcomb.close()
 
+    def uniedit_depedence(self,edits):
+        editIdxMap = {edits_as_key([edit]): cnt for cnt, edit in enumerate(edits)}
+        
+        grid = Table.grid()
+        grid.add_column(justify="right", style="bold blue")
+        grid.add_column()
+        for cnt, edit in enumerate(edits):
+            grid.add_row(str(cnt)+': ', str(edit))
+        rprint(grid)
+        
+        uniedit_str = input("uniedit index: ")
+        try:
+            uniedit = edits[int(uniedit_str)]
+            rprint(f'Target - {uniedit_str}: {uniedit}')
+        except:
+            print (f'{uniedit_str} is not a valid input')
+
+        unitest_status = True
+        try:
+            testInd = self.toolbox.individual(edits=[uniedit])
+        except:
+            unitest_status = False
+
+        if unitest_status:
+            fitness_values = [self.evaluate(testInd) for i in range(3)]
+            if None in [value[0] for value in fitness_values]:
+                unitest_status = False
+
+        # Only fail in applying uniedit alone need to do the dependency test
+        if unitest_status:
+            rprint(f'{uniedit_str}: {uniedit} is independently passable!')
+            return
+
+        with Progress(auto_refresh=False) as pbar:
+            task1 = pbar.add_task('', total=len(edits)-1)
+            for cnt, edit in enumerate(edits):
+                if edit == uniedit:
+                    continue
+                pbar.update(task1, completed=cnt, refresh=True,
+                            description=f"{cnt} testing ...")
+                try:
+                    testInd = self.toolbox.individual(edits=[edit, uniedit])
+                except irind.llvmIRrepRuntimeError:
+                    rprint(f'{cnt}:{edit} - Complilation failed')
+                    continue
+
+                fitness_values = [self.evaluate(testInd) for i in range(3)]
+                if None in [value[0] for value in fitness_values]:
+                    rprint(f'{cnt}:{edit} - Verification failed')
+                    continue
+
+                fit = min([value[0] for value in fitness_values])
+                improvement = self.origin.fitness.values[0] / fit
+                rprint(f'{cnt}:{edit} - {improvement}')
+                
+            
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Analyze the performance of mutation edits for CUDA kernel")
     parser.add_argument('-P', '--profile_file', type=str, required=True,
@@ -383,7 +441,8 @@ if __name__ == '__main__':
             rprint("2) remove weak edits")
             rprint("3) group independent/epistasis edits")
             rprint("4) test edit combinations exhaustively")
-            rprint("5) search the evolving path from given edits")
+            rprint("5) test uniedit's dependency")
+            rprint("6) search the evolving path from given edits")
             op = input("Chose the analysis operation you want to go over: ")
 
             if op == '0':
@@ -399,6 +458,8 @@ if __name__ == '__main__':
             elif op == '4':
                 alyz.group_test(curEdits)
             elif op == '5':
+                alyz.uniedit_depedence(curEdits)
+            elif op == '6':
                 alyz.evolve_path_searching(curEdits)
             else:
                 log.warning(f"Invalid selection: {op}")

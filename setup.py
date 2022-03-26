@@ -44,7 +44,7 @@ setup(
         'pandas',
         'pycuda'
     ],
-    packages=['gevo', 'fuzzycompare', 'llvm-mutate'],
+    packages=['gevo', 'fuzzycompare', 'variancecalc', 'llvm-mutate'],
     scripts=[
         'bin/gevo-evolve',
         'bin/gevo-analyze',

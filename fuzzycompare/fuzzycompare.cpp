@@ -7,6 +7,7 @@
 #include<exception>
 #include<cstdlib>
 #include<tuple>
+#include<climits>
 
 #ifndef STANDALONE
 #   include<pybind11/pybind11.h>
@@ -17,22 +18,38 @@ using namespace std;
 
 #define RELATIVE_ERROR 0
 #define ABSOLUTE_ERROR 1
+#define DEVIATION 2
 
 /**
  * @in source filename for comparison
  * @in golden filename for comparison
  * @return <return code, max error, avg error>
  **/
-tuple<int, double, double> file(string src, string golden, string epsilon_str)
+tuple<int, double, double> file(string src, string golden, string epsilon_str, string deviation)
 {
     ifstream sfp(src);
     ifstream gfp(golden);
-
     if (!sfp or !gfp)
         // The ifstream::exception will be triggered when reaching enf-of-file.
         // This bahvior makes it is difficult to distinguish between EOF and FileNotFound
         // The reason I still throw it is for python code to catch.
         throw ios_base::failure(src + " or " + golden + " cannot be opened.");
+
+    vector<double> devvec;
+    if (!deviation.empty()) {
+        ifstream dfp(deviation);
+        if (!dfp)
+            throw ios_base::failure(deviation + " cannot be opened.");
+
+        string str;
+        while (dfp >> str)
+            try {
+                devvec.push_back(stod(str));
+            }
+            catch (const invalid_argument &e) {
+                devvec.push_back(nan(""));
+            }
+    }
 
     double epsilon;
     unsigned error_mode;
@@ -42,7 +59,10 @@ tuple<int, double, double> file(string src, string golden, string epsilon_str)
             error_mode = ABSOLUTE_ERROR;
         }
         else {
-            error_mode = RELATIVE_ERROR;
+            if (deviation.empty())
+                error_mode = RELATIVE_ERROR;
+            else
+                error_mode = DEVIATION;
         }
         epsilon = stod(epsilon_str);
     }
@@ -90,11 +110,18 @@ tuple<int, double, double> file(string src, string golden, string epsilon_str)
             throw out_of_range("Not a Number");
 
         double err;
+        double relative_epi = 0.00001*fmax(sval, gval);
         if (error_mode == RELATIVE_ERROR)
             err = fabs(sval - gval) / ((gval == 0)? 1 : gval);
-        else // ABSOLUTE_ERROR
+        else if (error_mode == ABSOLUTE_ERROR) 
             err = fabs(sval - gval);
-        
+        else { // DEVIATION
+            if (devvec[i] == 0)
+                err = (fabs(sval - gval) <= relative_epi)? 0 : INT_MAX; // TODO: lazy @@
+            else
+                err = fabs(sval - gval) / devvec[i];
+        }
+       
         maxErr = (err > maxErr)? err : maxErr;
         avgErr += err;
     }
@@ -106,8 +133,8 @@ tuple<int, double, double> file(string src, string golden, string epsilon_str)
 #ifdef STANDALONE
 int main(int argc, char *argv[])
 {
-    if (argc < 3) {
-        cout << "usage: fuzzycompare <source_file> <golden_file> [epsilon[|]]" << endl;
+    if (argc < 5) {
+        cout << "usage: fuzzycompare <source_file> <golden_file> <epsilon[|s]> <deviation_file>" << endl;
         cout << "epsilon    The number denotes the tolerable error calculated" << endl;
         cout << "           by max((source - golden)/golden). This is relative" << endl;
         cout << "           error. By sepcifying '|' at the end of epsilon," << endl;
@@ -118,7 +145,7 @@ int main(int argc, char *argv[])
 
     tuple<int, double, double> rc;
     try {
-        rc = file(argv[1], argv[2], argv[3]);
+        rc = file(argv[1], argv[2], argv[3], argv[4]);
     }
     catch (exception &e) {
         cout << e.what() << endl;
@@ -129,6 +156,10 @@ int main(int argc, char *argv[])
         cout << "Max:" << get<1>(rc) << endl;
         cout << "Avg:" << get<2>(rc) << endl;
     }
+    if (get<0>(rc) == 0)
+        cout << "Pass" << endl;
+    else
+        cout << "Not pass" << endl;
     exit(get<0>(rc));
 }
 #else
@@ -138,6 +169,7 @@ PYBIND11_MODULE(fuzzycompare, m) {
     m.doc() = "Fuzzy compare"; // optional module docstring
 
     // By default, the allowed epsilon will be 1% in the relative mode
-    m.def("file", &file, "File comparison", py::arg("src"), py::arg("golden"), py::arg("epsilo_str") = "0.01");
+    m.def("file", &file, "File comparison", 
+          py::arg("src"), py::arg("golden"), py::arg("epsilo_str") = "0.01", py::arg("deviation") = "");
 }
 #endif
