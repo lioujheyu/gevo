@@ -1,7 +1,7 @@
 # GEVO
 
 [![PyPI version](https://badge.fury.io/py/gevo.svg)](https://badge.fury.io/py/gevo)
-[![Build Status](https://travis-ci.com/lioujheyu/gevo.svg?branch=master)](https://travis-ci.com/lioujheyu/gevo)
+[![Build Status](https://app.travis-ci.com/lioujheyu/gevo.svg?branch=master)](https://app.travis-ci.com/lioujheyu/gevo)
 
 GEVO (Gpu optimization using EVOlutionary computation) is a tool for automatically discovering optimization opportunities and tuning the performance of GPU kernels in the LLVM representation. 
 
