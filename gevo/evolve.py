@@ -107,7 +107,7 @@ class evolution:
                     golden_filename = f"{fname}.golden{str(self.idx)}"
                     self.golden.append(golden_filename)
             
-            self.fitness = (min([ value[0] for value in fitness ]), min([ value[1] for value in fitness ]))
+            self.fitness = (sum([ value[0] for value in fitness ])/self.num_samples, min([ value[1] for value in fitness ]))
             if None in self.fitness:
                 print(self.args)
                 raise Exception("Original binary execution error")
