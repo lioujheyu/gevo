@@ -450,7 +450,16 @@ if __name__ == '__main__':
             elif op == '1':
                 alyz.edittest(curEdits)
             elif op == '2':
-                curEdits = alyz.remove_weak_edits(curEdits)
+                while 1:
+                    try:
+                        userinput = input("Significant threshold of weak edit (default=0.01 of total runtime)? ")
+                        significant = float(userinput)
+                    except ValueError:
+                        log.warning(f"Invalid value: {userinput}")
+                        continue
+
+                    break
+                curEdits = alyz.remove_weak_edits(curEdits, significant)
             elif op == '3':
                 groupOp = input("return (1)independent or (2)epistasis as current edits after grouping?")
                 indEdits, epistasisEdits = alyz.search_indepedent_edits(curEdits)
