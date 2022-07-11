@@ -168,7 +168,7 @@ class llvmIRrep():
             self._edits = list(edits)
             self._serialized_edits = decode_edits(edits)
             # TODO: remove sorting after PACT submission (both here and llvm-mutate.py)
-            self.sort_serialized_edits()
+            # self.sort_serialized_edits()
             self.update_src_from_edits()
 
     @property
