@@ -70,7 +70,7 @@ class evolution:
     evalStats = {'cx':{'pass':[0],'fail':[0]}, 'mut':{'pass':[0],'fail':[0]}, 'epi':{'pass':[0],'fail':[0]}}
 
     class _testcase:
-        def __init__(self, evolution, idx, kernel, bin, verifier, n_samples=100):
+        def __init__(self, evolution, idx, kernel, bin, verifier, n_samples=10):
             self.idx = idx
             self.num_samples = n_samples
             self.kernels = kernel
@@ -87,7 +87,7 @@ class evolution:
             fitness = []
             
             # Evaluate {self.num_samples} times and get the minimum number
-            golden_run = []
+            golden_run = {}
             for i in range(self.num_samples):
                 fitness.append(self._evolution.execNVprofRetrive(self))
                 if None in fitness:
@@ -98,9 +98,12 @@ class evolution:
                     for fname in self.verifier['output']:
                         golden_run_filename = f"{fname}.golden{str(self.idx)}.{i}"
                         os.rename(fname, golden_run_filename)
-                        golden_run.append(golden_run_filename)
+                        if fname not in golden_run:
+                            golden_run[fname] = []
+                        golden_run[fname].append(golden_run_filename)
 
-            variancecalc.file(golden_run)
+            for fname in self.verifier['output']:
+                variancecalc.file(golden_run[fname])
             
             if self.verifier['mode'] == 'file':
                 for fname in self.verifier['output']:

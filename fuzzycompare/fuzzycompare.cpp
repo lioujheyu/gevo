@@ -110,7 +110,7 @@ tuple<int, double, double> file(string src, string golden, string epsilon_str, s
             throw out_of_range("Not a Number");
 
         double err;
-        double relative_epi = 0.00001*fmax(sval, gval);
+        double relative_epi = fabs(0.00001*fmax(sval, gval));
         if (error_mode == RELATIVE_ERROR)
             err = fabs(sval - gval) / ((gval == 0)? 1 : gval);
         else if (error_mode == ABSOLUTE_ERROR) 
