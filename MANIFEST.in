@@ -1,4 +1,5 @@
 recursive-exclude benchmark *
+recursive-include cuprof *
 recursive-include fuzzycompare *
 recursive-include variancecalc *
 include llvm-mutate/CMakeLists.txt

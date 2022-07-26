@@ -11,6 +11,7 @@ import filecmp
 import logging
 import io
 import os
+import inspect
 import time
 import gc
 import shutil
@@ -44,6 +45,8 @@ from gevo import fuzzycompare, variancecalc
 
 # critical section of multithreading
 lock = Lock()
+
+__CUINJ_PATH__ = f'{os.path.dirname(inspect.getfile(irind))}/libcuinj.so'
 
 class evolution:
     # Parameters
@@ -89,7 +92,7 @@ class evolution:
             # Evaluate {self.num_samples} times and get the minimum number
             golden_run = {}
             for i in range(self.num_samples):
-                fitness.append(self._evolution.execNVprofRetrive(self))
+                fitness.append(self._evolution.execCuprofRetrive(self))
                 if None in fitness:
                     print(self.args)
                     raise Exception("Original binary execution error") 
@@ -674,6 +677,85 @@ class evolution:
                 print("Can not find kernel \"{}\" from nvprof".format(self.kernels), file=sys.stderr)
                 return None, None
 
+    def execCuprofRetrive(self, testcase):
+        proc = subprocess.Popen([self.appBinary] + testcase.args,
+                                env={"CUDA_INJECTION64_PATH": __CUINJ_PATH__},
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        try:
+            gc.disable()
+            all_time = time.perf_counter()
+            stdout, stderr = proc.communicate(timeout=self.timeout) # second
+            all_time = time.perf_counter() - all_time
+            gc.enable()
+            retcode = proc.poll()
+            if retcode != 0:
+                return None, None
+        except subprocess.TimeoutExpired:
+            # Sometimes terminating nvprof will not terminate the underlying cuda program
+            # if that program is corrupted. So issue the kill command to those cuda app first
+            print('8', end='', flush=True)
+            try:
+                parent = psutil.Process(proc.pid)
+            except psutil.NoSuchProcess:
+                return
+            children = parent.children(recursive=True)
+            for subproc in children:
+                subproc.terminate()
+            subprocess.run(['killall', self.appBinary],
+                           stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE)
+
+            proc.terminate()
+            proc.wait()
+            self.mutStats['infinite'] = self.mutStats['infinite'] + 1
+            return None, None
+        except KeyboardInterrupt:
+            return None, None
+
+        program_output = stdout.decode()
+        cmpResult, err = self.resultCompare(program_output, testcase)
+        if cmpResult is False:
+            print('x', end='', flush=True)
+            return None, None
+        else:
+            print('.', end='', flush=True)
+            profile_output = stderr.decode()
+            csv_list = list(csv.reader(io.StringIO(profile_output), delimiter=','))
+
+            # search for kernel function(s)
+            kernel_time = []
+            time_percent = []
+            start_idx = csv_list.index(['=== [cuprof result] === '])
+            # The stats starts after 5th line
+            for line in csv_list[start_idx:]:
+                if len(line) == 0:
+                    continue
+                if line[0] == "GPU activities":
+                    for name in self.kernels:
+                        # 8th column for name of CUDA function call
+                        try:
+                            if line[7].split('(')[0] == name:
+                                # 3rd column for avg execution time
+                                kernel_time.append(float(line[2]))
+                                time_percent.append(float(line[1]))
+                        except:
+                            continue
+
+            if len(self.kernels) == len(kernel_time):
+                if self.fitness_function == 'time' or self.fitness_function == 'all_time':
+                    # total_kernel_time = sum(kernel_time)*100 / sum(time_percent)
+                    return all_time, err
+                    # return sum(kernel_time), err
+                elif self.fitness_function == 'kernel_time':
+                    # total_kernel_time = sum(kernel_time)*100 / sum(time_percent)
+                    total_kernel_time = sum(kernel_time)
+                    return total_kernel_time, err
+                    # return sum(kernel_time), err
+            else:
+                print("Can not find kernel \"{}\" from cuprof".format(self.kernels), file=sys.stderr)
+                return None, None
+
     def evaluate(self, individual, mode=None):
         if mode == 'cx':
             print('c', end='', flush=True)
@@ -704,7 +786,7 @@ class evolution:
         fits = []
         errs = []
         for tc in self.testcase:
-            fitness, err = self.execNVprofRetrive(tc)
+            fitness, err = self.execCuprofRetrive(tc)
 
             for res_file in self.verifier['output']:
                 if os.path.exists(res_file):
