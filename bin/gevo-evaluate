@@ -48,10 +48,10 @@ class program(evolution):
         fits = []
         errs = []
         for tc in self.testcase:
-            fitness, err = self.execNVprofRetrive(tc)
+            fitness, err = self.execCuprofRetrive(tc)
             if fitness is not None:
-                fitness2, err2 = self.execNVprofRetrive(tc)
-                fitness3, err3 = self.execNVprofRetrive(tc)
+                fitness2, err2 = self.execCuprofRetrive(tc)
+                fitness3, err3 = self.execCuprofRetrive(tc)
                 fitness = min([fitness, fitness2, fitness3])
                 err = min([err, err2, err3])
             else:

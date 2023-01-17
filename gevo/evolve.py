@@ -360,7 +360,7 @@ class evolution:
                         if self.err_rate[-1] == 's':
                             rc, maxerr, avgerr = fuzzycompare.file(s, f"{g}.mean", self.err_rate, f"{g}.stddev")
                         else:
-                            rc, maxerr, avgerr = fuzzycompare.file(s, g, self.err_rate)
+                            rc, maxerr, avgerr = fuzzycompare.file(s, f"{g}.mean", self.err_rate)
                     except IndexError:
                         return False, 1
                     # if rc < 0:
@@ -726,7 +726,7 @@ class evolution:
             # search for kernel function(s)
             kernel_time = []
             time_percent = []
-            start_idx = csv_list.index(['=== [cuprof result] === '])
+            start_idx = csv_list.index(['=== [cuprof result] ==='])
             # The stats starts after 5th line
             for line in csv_list[start_idx:]:
                 if len(line) == 0:

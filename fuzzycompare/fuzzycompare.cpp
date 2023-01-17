@@ -25,7 +25,7 @@ using namespace std;
  * @in golden filename for comparison
  * @return <return code, max error, avg error>
  **/
-tuple<int, double, double> file(string src, string golden, string epsilon_str, string deviation)
+tuple<int, double, double> file(string src, string golden, string epsilon_str, string deviation="")
 {
     ifstream sfp(src);
     ifstream gfp(golden);
@@ -53,17 +53,21 @@ tuple<int, double, double> file(string src, string golden, string epsilon_str, s
 
     double epsilon;
     unsigned error_mode;
+    
+    if (epsilon_str.back() == '|') {
+        epsilon_str.pop_back();
+        error_mode = ABSOLUTE_ERROR;
+    }
+    else if (epsilon_str.back() == 's') {
+        if (deviation.empty())
+            throw invalid_argument("Need a deviation file in DEVIATION error mode");
+        epsilon_str.pop_back();
+        error_mode = DEVIATION;
+    }
+    else
+        error_mode = RELATIVE_ERROR;
+    
     try {
-        if (epsilon_str.back() == '|') {
-            epsilon_str.pop_back();
-            error_mode = ABSOLUTE_ERROR;
-        }
-        else {
-            if (deviation.empty())
-                error_mode = RELATIVE_ERROR;
-            else
-                error_mode = DEVIATION;
-        }
         epsilon = stod(epsilon_str);
     }
     catch (const invalid_argument &e) {
@@ -133,19 +137,24 @@ tuple<int, double, double> file(string src, string golden, string epsilon_str, s
 #ifdef STANDALONE
 int main(int argc, char *argv[])
 {
-    if (argc < 5) {
-        cout << "usage: fuzzycompare <source_file> <golden_file> <epsilon[|s]> <deviation_file>" << endl;
+    if (argc < 4) {
+        cout << "usage: fuzzycompare <source_file> <golden_file> <epsilon[|s]> [deviation_file]" << endl;
         cout << "epsilon    The number denotes the tolerable error calculated" << endl;
         cout << "           by max((source - golden)/golden). This is relative" << endl;
         cout << "           error. By sepcifying '|' at the end of epsilon," << endl;
         cout << "           the error becomes max(|source - golden|). This is " << endl;
-        cout << "           absolute error." << endl;
+        cout << "           absolute error. By specifying 's' at the end of " << endl;
+        cout << "           epsilon, the error is calculated by " << endl;
+        cout << "           |source - golden| / deviation, which is deviation error." << endl;
         exit(-1);
     }
 
     tuple<int, double, double> rc;
     try {
-        rc = file(argv[1], argv[2], argv[3], argv[4]);
+        if (argc == 4)
+            rc = file(argv[1], argv[2], argv[3]);
+        else
+            rc = file(argv[1], argv[2], argv[3], argv[4]);
     }
     catch (exception &e) {
         cout << e.what() << endl;

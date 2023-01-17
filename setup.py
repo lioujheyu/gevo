@@ -51,7 +51,8 @@ setup(
         'bin/gevo-evaluate',
         'bin/gevo-stage-analyze',
         'bin/gevo-explore',
-        'bin/llvm-mutate'
+        'bin/llvm-mutate',
+        'bin/cuprof'
     ],
     zip_safe=False,
     classifiers=[
