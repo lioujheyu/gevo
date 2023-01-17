@@ -8,6 +8,7 @@ import argparse
 
 try:
     from gevo import irind
+    from gevo import __version__
 except ImportError:
     # TODO: load mutation.so from Mutate folder with proper llvm version string as a standalone mode
     print('Cuprof Error: GEVO is not installed properly!')
@@ -18,6 +19,7 @@ __CUINJ_PATH__ = f'{os.path.dirname(inspect.getfile(irind))}/libcuinj.so'
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Lightweight CUDA kernel runtime profiler")
     parser.add_argument('cmd', nargs='+', type=str, help='CUDA program and arguments')
+    parser.add_argument('--version', action='version', version='gevo-' + __version__)
     args = parser.parse_args()
 
     prog = subprocess.run(args.cmd, env={"CUDA_INJECTION64_PATH": __CUINJ_PATH__}, check=True)
