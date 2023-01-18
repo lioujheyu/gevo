@@ -35,6 +35,8 @@ jobs:
         with:
           python-version: '${{ matrix.python-version }}'
       - uses: actions/checkout@v2
+        with:
+          submodules: recursive
       - run: 'LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}'
       - run: 'PATH=${CUDA_HOME}/bin:${PATH}'
       - run: pip install lit filecheck
