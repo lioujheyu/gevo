@@ -22,7 +22,7 @@ jobs:
         with:
           cuda: '11.7.0'
       - name: Install LLVM-11
-        uses: myci-actions/add-deb-repo@<version>
+        uses: myci-actions/add-deb-repo@10
         with:
           repo: deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-11 main
           repo-name: llvm
