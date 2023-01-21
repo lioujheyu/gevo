@@ -1,4 +1,4 @@
-name: Build and run
+name: Build and Test
 on:
   push:
     branches:
@@ -12,9 +12,11 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-latest
+          - ubuntu-20.04
+          - ubuntu-22.04
         python-version:
           - 3.8
+          - 3.10
     steps:
       - name: Install CUDA
         run: sudo apt install -y nvidia-cuda-toolkit
@@ -29,14 +31,16 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: '${{ matrix.python-version }}'
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: recursive
-      # - name: Setup tmate session
-      #   uses: mxschmitt/action-tmate@v3
-      - run: 'LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}'
-      - run: 'PATH=${CUDA_HOME}/bin:${PATH}'
-      - run: pip install lit filecheck
-      - run: pip install .
-      - run: llvm-mutate --version
-      - run: lit -v llvm-mutate/tests
+      - name: Build GEVO
+        run: pip install .
+      - name: Test GEVO module - llvm-mutate
+        run: |
+          pip install lit filecheck
+          llvm-mutate --version
+          lit -v llvm-mutate/tests
+      - name: Setup tmate session if failed
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
