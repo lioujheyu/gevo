@@ -1,4 +1,4 @@
-name: Converted Workflow
+name: Build and run
 on:
   push:
     branches:
