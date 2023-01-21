@@ -35,6 +35,8 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: recursive
+      - name: Setup upterm session
+        uses: lhotari/action-upterm@v1
       - run: 'LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}'
       - run: 'PATH=${CUDA_HOME}/bin:${PATH}'
       - run: pip install lit filecheck
