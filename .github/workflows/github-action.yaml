@@ -16,7 +16,11 @@ jobs:
     steps:
       - name: Install CUDA
         run: sudo apt install -y nvidia-cuda-toolkit
-      - name: Install LLVM-11
+      - name: Install LLVM-11 on Ubuntu-20.04
+        if: matrix.os == ubuntu-20.04
+        run: sudo apt install llvm-11-dev
+      - name: Install LLVM-11 on Ubuntu-22.04
+        if: matrix.os == ubuntu-22.04
         uses: myci-actions/add-deb-repo@10
         with:
           repo: deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-11 main
