@@ -11,14 +11,11 @@ jobs:
     runs-on: '${{ matrix.os }}'
     strategy:
       matrix:
-        os: [ubuntu-20.04, ubuntu-22.04]
+        os: [ubuntu-22.04]
         python-version: ["3.8", "3.10"]
     steps:
       - name: Install CUDA
         run: sudo apt install -y nvidia-cuda-toolkit
-      - name: Install LLVM-11 on Ubuntu-20.04
-        if: matrix.os == 'ubuntu-20.04'
-        run: sudo apt install llvm-11-dev
       - name: Install LLVM-11 on Ubuntu-22.04
         if: matrix.os == 'ubuntu-22.04'
         uses: myci-actions/add-deb-repo@10
