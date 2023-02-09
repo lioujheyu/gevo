@@ -47,10 +47,13 @@ class program(evolution):
             except FileNotFoundError:
                 log.error(f"Editmapfile:{editmap} cannot be found")
                 sys.exit(1)
-        
+
         try:
             with open(editf, 'r') as f:
-                self.edits = ast.literal_eval(f.read())
+                try:
+                    self.edits = ast.literal_eval(f.read())
+                except:
+                    log.error(f"Edit file:{editf} is not a valid edit file")
                 self.edits = irind.encode_edits_from_list(self.edits)
         except FileNotFoundError:
             log.error(f"Edit File:{editf} cannot be found")
@@ -68,7 +71,13 @@ class program(evolution):
         err = min([value[1] for value in fitness_values])
         self.fullEditsInd.fitness.values = (fit, err)
         rprint("")
-        log.info(f"Fitness of the program with all edits: {self.fullEditsInd.fitness}")    
+        log.info(f"Fitness of the program with all edits: {self.fullEditsInd.fitness}")
+
+        self.fullEditsOptInd = self.toolbox.individual(edits = self.edits)
+        self.fullEditsOptInd.optimize_src()
+        fitness_values_opt = self.evaluate(self.fullEditsOptInd)
+        if None in fitness_values_opt:
+            log.warning("This edit file fails opt O2 pass. Proceed with caution!")
 
     def remove_weak_edits(self, edits, threshold=0.01):
         '''
@@ -109,7 +118,7 @@ class program(evolution):
 
                 pbar.update(task1, completed=cnt+1, refresh=True,
                             description=f"({cnt+1}/{len(edits)})")
-        
+
         with open("reduced.edit", "w") as f:
             rprint(indPrior.edits, file=f)
         with open("reduced.ll", "w") as f:
@@ -117,7 +126,7 @@ class program(evolution):
         log.info("Done writing reduced.edit and reduced.ll")
         log.info(f"Fitness of the edit-reduced program: {indPrior.fitness}")
         return indPrior.edits
-    
+
     def edittest(self, edits):
         fitness = [None] * len(edits)
         for edit,fits in zip(edits, fitness):
@@ -135,6 +144,18 @@ class program(evolution):
             if None in errs:
                 rprint(f"{edit}: execution failed")
                 continue
+
+            ind.optimize_src()
+            fitness_values_opt = [self.evaluate(ind) for i in range(3)]
+            fits_opt = [value[0] for value in fitness_values_opt]
+            errs_opt = [value[1] for value in fitness_values_opt]
+            if None in fits_opt:
+                rprint(f"{edit}: optimized execution failed")
+                continue
+            if None in errs_opt:
+                rprint(f"{edit}: optimized execution failed")
+                continue
+
             fit = min(fits)
             err = max(errs)
             improvement = self.origin.fitness.values[0]/fit
@@ -171,7 +192,7 @@ class program(evolution):
             err = min([value[1] for value in fitness_values])
             fullExceptEditInd.fitness.values = (fit, err)
             runtimeDiffTop = fullExceptEditInd.fitness.values[0] - self.fullEditsInd.fitness.values[0]
-            
+
             if abs(runtimeDiffDown - runtimeDiffTop) < self.origin.fitness.values[0]*0.01:
                 log.info(f"{edit} can be independently applied: {editOnlyInd.fitness.values[0]:.2f}.")
                 independentEdits.append(edit)
@@ -192,17 +213,17 @@ class program(evolution):
         for cnt, edit in enumerate(edits):
             grid.add_row(str(cnt)+': ', str(edit))
         rprint(grid)
-        
+
         fcomb = open("path_find.txt", 'w')
         rprint(grid, file=fcomb)
 
         best_comb = None
         best_imp = 0
-        
+
         with Progress(auto_refresh=False) as pbar:
             task1 = pbar.add_task(f"", total=len(list(itertools.combinations(edits, 2))))
             cnt = 0
-            for subEdits in itertools.combinations(edits, 2): 
+            for subEdits in itertools.combinations(edits, 2):
                 fcomb.flush()
                 pbar.update(task1, completed=cnt, refresh=True,
                             description=f"{2} combination: ({cnt}/{len(list(itertools.combinations(edits, 2)))})")
@@ -231,7 +252,7 @@ class program(evolution):
                     best_comb = subEdits
             rprint(f'Best comb in 2: {best_comb}: {best_imp:.2f}')
             fcomb.write(f'Best comb in 2: {best_comb}: {best_imp:.2f}\n')
-        
+
         for l in range(3, len(edits)):
             rest_edits = [ e for e in edits if e not in best_comb ]
             fcomb.write(f"{l} combinations\n")
@@ -271,24 +292,24 @@ class program(evolution):
                         cur_best_comb = subEdits
 
                 best_comb = cur_best_comb
-            
+
             rprint(f'Best comb in {l}: {best_comb}: {best_imp:.2f}')
             fcomb.write(f'Best comb in 2 {best_comb}: {best_imp:.2f}\n')
 
         fcomb.close()
-        
-    
+
+
     def group_test(self, edits):
         log.info("Start evaluating all edit combinations iteratively ...")
         editIdxMap = {edits_as_key([edit]): cnt for cnt, edit in enumerate(edits)}
-        
+
         grid = Table.grid()
         grid.add_column(justify="right", style="bold blue")
         grid.add_column()
         for cnt, edit in enumerate(edits):
             grid.add_row(str(cnt)+': ', str(edit))
         rprint(grid)
-        
+
         fcomb = open("group_test.txt", 'w')
         rprint(grid, file=fcomb)
 
@@ -297,7 +318,7 @@ class program(evolution):
             with Progress(auto_refresh=False) as pbar:
                 task1 = pbar.add_task(f"", total=len(list(itertools.combinations(edits, l))))
                 cnt = 0
-                for subEdits in itertools.combinations(edits, l): 
+                for subEdits in itertools.combinations(edits, l):
                     fcomb.flush()
                     pbar.update(task1, completed=cnt, refresh=True,
                                 description=f"{l} combination: ({cnt}/{len(list(itertools.combinations(edits, l)))})")
@@ -328,14 +349,14 @@ class program(evolution):
 
     def uniedit_depedence(self,edits):
         editIdxMap = {edits_as_key([edit]): cnt for cnt, edit in enumerate(edits)}
-        
+
         grid = Table.grid()
         grid.add_column(justify="right", style="bold blue")
         grid.add_column()
         for cnt, edit in enumerate(edits):
             grid.add_row(str(cnt)+': ', str(edit))
         rprint(grid)
-        
+
         uniedit_str = input("uniedit index: ")
         try:
             uniedit = edits[int(uniedit_str)]
@@ -380,8 +401,8 @@ class program(evolution):
                 fit = min([value[0] for value in fitness_values])
                 improvement = self.origin.fitness.values[0] / fit
                 rprint(f'{cnt}:{edit} - {improvement}')
-                
-            
+
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Analyze the performance of mutation edits for CUDA kernel")

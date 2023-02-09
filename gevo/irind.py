@@ -235,7 +235,7 @@ class llvmIRrep():
         else:
             self._edits = list(other.edits)
             self._serialized_edits = list(other.serialized_edits)
-    
+
     def update_src_from_edits(self, sweepEdits=False):
         assert(len(self.edits) != 0)
         if sweepEdits is False:
@@ -267,6 +267,20 @@ class llvmIRrep():
 
             # self.edits = validEdits
         self._update_src(mutateSrcEn)
+
+    def optimize_src(self, pass_vec=None):
+        opt_pass = ['-O2'] if pass_vec is None else list(pass_vec)
+        if self._srcEnc is None:
+            return
+        opt_proc = subprocess.run(['opt-11', '-S',] + opt_pass,
+                                  input=self._srcEnc,
+                                  capture_output=True)
+        if opt_proc.returncode != 0:
+            print(opt_proc.stderr)
+            self._srcEnc = None
+            raise llvmIRrepRuntimeError()
+
+        self._update_src(opt_proc.stdout)
 
     def sort_serialized_edits(self):
         if all([isinstance(item, edit) for item in self._serialized_edits]) is False:

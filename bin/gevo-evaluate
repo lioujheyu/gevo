@@ -74,6 +74,21 @@ class program(evolution):
         for fit, err, ofit in zip(fits, errs, self.ofits):
             rprint(f"({fit:.2f}, {err:.2f}), Improvement: {ofit/fit*100:.2f}")
 
+        rprint("Test LLVM Opt optimized src: ", end="")
+        fits = []
+        errs = []
+        individual.optimize_src()
+        individual.ptx(self.cudaPTX)
+        with open('gevo.ll', 'w') as f:
+            f.write(individual.srcEnc.decode())
+        for tc in self.testcase:
+            fitness, err = self.execCuprofRetrive(tc)
+            if fitness is not None:
+                rprint("Pass!")
+            else:
+                rprint("Failed!")
+                exit(0)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Analyze the performance of mutation edits for CUDA kernel")
     parser.add_argument('-P', '--profile_file', type=str, required=True,
