@@ -42,7 +42,8 @@ setup(
         'psutil',
         'rich>=9.11',
         'pandas',
-        'pycuda'
+        'pycuda',
+        'argcomplete'
     ],
     packages=['gevo', 'cuprof', 'fuzzycompare', 'variancecalc', 'llvm-mutate'],
     scripts=[
