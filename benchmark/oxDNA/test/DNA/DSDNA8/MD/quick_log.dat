@@ -1,0 +1,56 @@
+INFO: seeding the RNG with -1713391620
+INFO: Initializing backend 
+
+WARNING: The 'backend_precision' option cannot be set by input file when running on CPU
+
+INFO: Simulation type not specified, using MD
+INFO: The generator will try to take into account bonded interactions by choosing distances between bonded neighbours no larger than 2.000000
+INFO: Converting temperature from Celsius (20.000000 C°) to simulation units (0.097717)
+INFO: Converting temperature from Celsius (20.000000 C°) to simulation units (0.097717)
+INFO: Temperature change detected (new temperature: 20.00 C, 293.15 K), re-initialising the DNA interaction
+INFO: Converting temperature from Celsius (20.000000 C°) to simulation units (0.097717)
+INFO: pid: 3653169
+INFO: (Cells.cpp) N_cells_side: 4, 4, 4; rcut=1.68377, IS_MC: 0
+INFO: N: 16, N molecules: 2
+INFO: Using randomly distributed velocities
+INFO: Initial kinetic energy: 4.136557
+INFO: RELEASE: v3.0.0-alpha
+INFO: GIT COMMIT: 3641080
+INFO: COMPILED ON: 05/12/21
+INFO: diffusion fixed.. -23.0925 -23.0925
+INFO: diffusion fixed.. -20.1047 -20.1047
+INFO: diffusion fixed.. -22.1002 -22.1002
+INFO: diffusion fixed.. -22.1976 -22.1976
+INFO: diffusion fixed.. -22.4643 -22.4643
+INFO: diffusion fixed.. -22.0553 -22.0553
+INFO: diffusion fixed.. -22.2678 -22.2678
+INFO: diffusion fixed.. -22.6047 -22.6047
+INFO: diffusion fixed.. -22.5218 -22.5218
+INFO: diffusion fixed.. -23.5537 -23.5537
+
+INFO: Total Running Time: 18.663 s, per step: 0.018663 ms
+INFO: Timings, in seconds, by Timer (total, own, spent in children)
+> SimBackend                         18.663 (100.0%)        2.928 ( 15.7%)       15.735 ( 84.3%)
+***> Lists                            1.010 (  5.4%)        1.010 (  5.4%)        0.000 (  0.0%)
+***> Thermostat                       0.591 (  3.2%)        0.591 (  3.2%)        0.000 (  0.0%)
+***> Forces                          12.473 ( 66.8%)       12.473 ( 66.8%)        0.000 (  0.0%)
+***> First Step                       1.660 (  8.9%)        1.660 (  8.9%)        0.000 (  0.0%)
+
+INFO: END OF THE SIMULATION, everything went OK!
+INFO: Lists updated 83695 times (every ~11.948145 steps)
+INFO: Aggregated I/O statistics (set debug=1 for file-wise information)
+	139.994 KB written to files
+	 60.607 KB written to stdout/stderr
+	For a total of   0.0105 MB/s
+
+
+Please cite these publications for any work that uses the oxDNA simulation package
+- for the code:
+    * P. Šulc et al., J. Chem. Phys. 137, 135101 (2012)
+    * L. Rovigatti et al., J. Comput. Chem. 36, 1 (2015)
+- for the oxDNA model:
+    * T. E. Ouldridge et al., J. Chem. Phys, 134, 085101 (2011)
+- for the oxDNA2 model:
+    * B. E. K. Snodin et al., J. Chem. Phys. 142, 234901 (2015)
+- for the oxRNA model:
+    * P. Šulc et al., J. Chem. Phys. 140, 235102 (2014)

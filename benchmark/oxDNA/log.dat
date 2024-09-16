@@ -1,0 +1,11 @@
+INFO: seeding the RNG with 1827699400
+INFO: Initializing backend 
+
+WARNING: The 'backend_precision' option cannot be set by input file when running on CPU
+
+INFO: Simulation type: MD
+INFO: pid: 3654444
+INFO: Aggregated I/O statistics (set debug=1 for file-wise information)
+	  0.000  B written to files
+	  0.000  B written to stdout/stderr
+ERROR: Can't read configuration file 'init.dat'

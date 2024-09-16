@@ -1,0 +1,32 @@
+{
+	"binary": "build/program_gpu",
+	"kernels": ["gpu_bsw::sequence_dna_kernel", "gpu_bsw::sequence_dna_reverse"],
+	"args": [
+	  {
+		"variability": "list",
+		"value": ["dna"],
+		"desc": "sequence type"
+	  },
+	  {
+		"variability": "list",
+		"value": ["test-data/dna-reference.fasta", "additional_data/ref_dna.fasta"],
+		"desc": "reference data"
+	  },
+	  {
+		"variability": "list",
+		"value": ["test-data/dna-query.fasta", "additional_data/read_dna.fasta"],
+		"bond": [1],
+		"desc": "query data"
+	  },
+	  {
+		"variability": "list",
+		"value": ["score.out"],
+		"desc": "output file"
+	  }
+	],
+	"verify": {
+	  "mode": "file",
+	  "output": ["top_scores.out", "score.out"],
+	  "fuzzy": true
+	}
+}

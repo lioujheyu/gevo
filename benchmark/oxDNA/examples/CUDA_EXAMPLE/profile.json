@@ -1,0 +1,22 @@
+{
+	"binary": "../../build/bin/oxDNA",
+	"kernels": ["dna_forces_edge_nonbonded",
+			    "first_step_mixed",
+				"dna_forces_edge_bonded",
+				"second_step_mixed"],
+	"args": [
+	  {
+                "variability": "list",
+                "value": ["input_TEST"],
+                "desc": ""
+          }
+        ],
+	"verify": {
+	  "mode": "file",
+	  "output": [
+	    "last_conf.dat",
+		"energy.dat"
+	  ],
+	  "fuzzy": true
+	}
+}

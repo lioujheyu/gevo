@@ -1,0 +1,13 @@
+INFO: Setting the random number generator with seed = 1682090647
+INFO: (Cells.cpp) N_cells_side: 4, 4, 4; rcut=2.9, IS_MC: 0
+INFO: N: 1000, N molecules: 1000
+INFO: RELEASE: v3.0.0-alpha
+INFO: GIT COMMIT: 3641080
+INFO: COMPILED ON: 05/12/21
+INFO: Starting analysis
+INFO: END OF THE ANALYSIS, everything went OK!
+INFO: Aggregated I/O statistics (set debug=1 for file-wise information)
+	 11.000  B written to files
+	  0.000  B written to stdout/stderr
+	For a total of  0.00117 MB/s
+

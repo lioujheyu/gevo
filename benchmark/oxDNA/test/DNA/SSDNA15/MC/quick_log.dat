@@ -1,0 +1,51 @@
+INFO: seeding the RNG with -252067043
+INFO: Initializing backend 
+
+WARNING: The 'backend_precision' option cannot be set by input file when running on CPU
+
+INFO: Simulation type: MC
+INFO: The generator will try to take into account bonded interactions by choosing distances between bonded neighbours no larger than 2.000000
+INFO: Converting temperature from Kelvin (300.000000 K) to simulation units (0.100000)
+INFO: Converting temperature from Kelvin (300.000000 K) to simulation units (0.100000)
+INFO: Temperature change detected (new temperature: 26.85 C, 300.00 K), re-initialising the DNA interaction
+INFO: pid: 3652945
+INFO: (Cells.cpp) N_cells_side: 4, 4, 4; rcut=2.58377, IS_MC: 1
+INFO: N: 15, N molecules: 1
+INFO: RELEASE: v3.0.0-alpha
+INFO: GIT COMMIT: 3641080
+INFO: COMPILED ON: 05/12/21
+INFO: diffusion fixed.. -12.2032 -12.2032
+INFO: diffusion fixed.. -11.8951 -11.8951
+INFO: diffusion fixed.. -13.0982 -13.0982
+INFO: diffusion fixed.. -7.40109 -7.40109
+INFO: diffusion fixed.. -11.3554 -11.3554
+INFO: diffusion fixed.. -12.0642 -12.0642
+INFO: diffusion fixed.. -15.389 -15.389
+INFO: diffusion fixed.. -8.89335 -8.89335
+INFO: diffusion fixed.. -10.3979 -10.3979
+INFO: diffusion fixed.. -13.3812 -13.3812
+
+INFO: Total Running Time: 33.1678 s, per step: 0.0331678 ms
+INFO: Timings, in seconds, by Timer (total, own, spent in children)
+> SimBackend                         33.168 (100.0%)        9.209 ( 27.8%)       23.959 ( 72.2%)
+***> Rotations+Translations          23.959 ( 72.2%)       23.959 ( 72.2%)        0.000 (  0.0%)
+> Lists                               0.053 (  0.2%)        0.053 (  0.2%)        0.000 (  0.0%)
+
+INFO: END OF THE SIMULATION, everything went OK!
+INFO: Lists updated 6384 times (every ~156.641604 steps)
+INFO: Aggregated I/O statistics (set debug=1 for file-wise information)
+	133.439 KB written to files
+	 46.922 KB written to stdout/stderr
+	For a total of  0.00531 MB/s
+
+
+Please cite these publications for any work that uses the oxDNA simulation package
+- for the code:
+    * P. Šulc et al., J. Chem. Phys. 137, 135101 (2012)
+    * L. Rovigatti et al., J. Comput. Chem. 36, 1 (2015)
+- for the oxDNA model:
+    * T. E. Ouldridge et al., J. Chem. Phys, 134, 085101 (2011)
+- for the oxDNA2 model:
+    * B. E. K. Snodin et al., J. Chem. Phys. 142, 234901 (2015)
+- for the oxRNA model:
+    * P. Šulc et al., J. Chem. Phys. 140, 235102 (2014)

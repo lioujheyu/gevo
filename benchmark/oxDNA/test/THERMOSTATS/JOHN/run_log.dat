@@ -1,0 +1,40 @@
+INFO: seeding the RNG with -453286283
+INFO: Initializing backend 
+
+WARNING: The 'backend_precision' option cannot be set by input file when running on CPU
+
+INFO: Simulation type: MD
+INFO: pid: 3652842
+INFO: (Cells.cpp) N_cells_side: 4, 4, 4; rcut=2.8, IS_MC: 0
+INFO: N: 1000, N molecules: 1000
+INFO: Using randomly distributed velocities
+INFO: Initial kinetic energy: 5984.468375
+INFO: RELEASE: v3.0.0-alpha
+INFO: GIT COMMIT: 3641080
+INFO: COMPILED ON: 05/12/21
+
+INFO: Total Running Time: 0.011982 s, per step: 1.1982 ms
+INFO: Timings, in seconds, by Timer (total, own, spent in children)
+> SimBackend                          0.012 (100.0%)        0.000 (  0.4%)        0.012 ( 99.6%)
+***> Lists                            0.000 (  0.1%)        0.000 (  0.1%)        0.000 (  0.0%)
+***> Thermostat                       0.000 (  0.5%)        0.000 (  0.5%)        0.000 (  0.0%)
+***> Forces                           0.012 ( 96.5%)        0.012 ( 96.5%)        0.000 (  0.0%)
+***> First Step                       0.000 (  2.5%)        0.000 (  2.5%)        0.000 (  0.0%)
+
+INFO: END OF THE SIMULATION, everything went OK!
+INFO: Aggregated I/O statistics (set debug=1 for file-wise information)
+	264.490 KB written to files
+	 62.000  B written to stdout/stderr
+	For a total of     21.6 MB/s
+
+
+Please cite these publications for any work that uses the oxDNA simulation package
+- for the code:
+    * P. Šulc et al., J. Chem. Phys. 137, 135101 (2012)
+    * L. Rovigatti et al., J. Comput. Chem. 36, 1 (2015)
+- for the oxDNA model:
+    * T. E. Ouldridge et al., J. Chem. Phys, 134, 085101 (2011)
+- for the oxDNA2 model:
+    * B. E. K. Snodin et al., J. Chem. Phys. 142, 234901 (2015)
+- for the oxRNA model:
+    * P. Šulc et al., J. Chem. Phys. 140, 235102 (2014)

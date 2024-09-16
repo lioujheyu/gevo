@@ -1,0 +1,80 @@
+{
+	"binary": "simcov_gpu.out",
+	"kernels": ["device_age_tcells",
+			    "device_set_binding_tcells",
+				"device_bind_tcells",
+				"device_set_move_tcells",
+				"device_move_tcells",
+		        "device_accumulate",
+			    "device_spread_chemokine",
+                   "device_reduce_values"],
+	"args": [
+          {
+		"variability": "list",
+		"value": ["--dim_x"],
+		"desc": "x dimension"
+	  },
+          {
+		"variability": "list",
+		"value": ["100"],
+		"desc": "x dimension"
+	  },
+          {
+		"variability": "list",
+		"value": ["--dim_y"],
+		"desc": "y dimension"
+	  },
+          {
+		"variability": "list",
+		"value": ["100"],
+		"desc": "y dimension"
+	  },
+          {
+		"variability": "list",
+		"value": ["--sample_period"],
+		"desc": "sample period"
+	  },
+          {
+		"variability": "list",
+		"value": ["100"],
+		"desc": "sample_period"
+	  },
+          {
+		"variability": "list",
+		"value": ["--tcell_initial_delay"],
+		"desc": ""
+	  },
+          {
+		"variability": "list",
+		"value": ["500"],
+		"desc": ""
+	  },
+          {
+		"variability": "list",
+		"value": ["--timesteps"],
+		"desc": ""
+	  },
+          {
+		"variability": "list",
+		"value": ["2500"],
+		"desc": ""
+	  },
+	  {
+		"variability": "list",
+		"value": ["--seed"],
+		"desc": ""
+	  },
+	  {
+                "variability": "list",
+                "value": ["7"],
+                "desc": ""
+          }
+        ],
+	"verify": {
+	  "mode": "file",
+	  "output": [
+	    "output"
+	  ],
+	  "fuzzy": true
+	}
+}
